@@ -8,6 +8,10 @@ coverage/
 poker-tracker-*.zip
 .pkg_stage/
 
+# reference docs (not part of the app)
+*.pdf
+poker-api/
+
 # wrangler files
 .wrangler
 worker/wrangler.jsonc
