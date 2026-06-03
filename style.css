@@ -672,10 +672,23 @@ header > .icon-btn { flex-shrink: 0; }
 .blinds-preset-desc { font-size: 0.73rem; color: var(--muted); }
 
 .blinds-preset-buyin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 0.95rem;
+  font-weight: 600;
   color: var(--accent);
+  line-height: 1.1;
+}
+
+.blinds-preset-buyin small {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 /* Add to roster */

@@ -68,18 +68,26 @@ let selectedGames   = new Set();
 let casinoPeriod = 'all'; // 'all' | 'year' | 'month'
 
 // Blinds timer state
-const BLIND_LEVELS = [
-  { small: 5,   big: 10  }, { small: 10,  big: 20  }, { small: 15,  big: 30  },
-  { small: 25,  big: 50  }, { small: 50,  big: 100 }, { small: 75,  big: 150 },
-  { small: 100, big: 200 }, { small: 150, big: 300 }, { small: 200, big: 400 },
-  { small: 300, big: 600 },
+// Escalating tournament blind schedule. The small blind scales through these
+// multipliers (a standard pub progression); the schedule is rebuilt from a chosen
+// opening blind when a structure preset is applied (see applyStructure).
+const BLIND_STEPS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 100];
+function buildBlindSchedule(openingSmall) {
+  return BLIND_STEPS.map(m => ({ small: openingSmall * m, big: openingSmall * m * 2 }));
+}
+let blindSchedule = buildBlindSchedule(25); // default opening 25/50
+
+// Tournament structure presets a pub would actually run. APL is "play for fun":
+// tournament chips have no cash value, everyone gets the same starting stack, blinds
+// escalate, and a flat entry fee (where permitted) is the same for all players.
+const TOURNAMENT_STRUCTURES = [
+  { name: 'Turbo',    chips: 5000,  small: 25,  big: 50,  levelSecs: 900  },
+  { name: 'Standard', chips: 10000, small: 50,  big: 100, levelSecs: 1200 },
+  { name: 'Deep',     chips: 20000, small: 100, big: 200, levelSecs: 1200 },
 ];
-// Preset buy-ins for common home game stakes (100 big blinds each)
-const BLIND_PRESETS = [
-  { label: '0.10 / 0.20', desc: 'Micro stakes', buyin: 20   },
-  { label: '1 / 2',       desc: 'Low stakes',   buyin: 200  },
-  { label: '5 / 10',      desc: 'Mid stakes',   buyin: 1000 },
-];
+// Flat entry fee pre-filled per player (overridable in config.js via ENTRY_FEE).
+const DEFAULT_ENTRY_FEE = (typeof ENTRY_FEE !== 'undefined' && Number(ENTRY_FEE) > 0)
+  ? Number(ENTRY_FEE) : 10;
 let timerInterval     = null;
 let timerRunning      = false;
 let timerLevel        = 0;
@@ -548,10 +556,12 @@ function renderPlayers() {
    Extra players added via the picker are saved to localStorage.
    ═══════════════════════════════════════════════════════════════ */
 
-// Starter roster. Override per-deployment by setting DEFAULT_ROSTER in config.js.
-const DEFAULT_PLAYERS = (typeof DEFAULT_ROSTER !== 'undefined' && Array.isArray(DEFAULT_ROSTER) && DEFAULT_ROSTER.length)
+// Starter roster comes from DEFAULT_ROSTER in config.js (empty by default).
+// No hardcoded fallback — players are added fresh via the picker each night
+// and persisted to localStorage.
+const DEFAULT_PLAYERS = (typeof DEFAULT_ROSTER !== 'undefined' && Array.isArray(DEFAULT_ROSTER))
   ? DEFAULT_ROSTER
-  : ['Alex', 'Sam', 'Jordan', 'Casey', 'Taylor', 'Morgan', 'Riley', 'Jamie'];
+  : [];
 
 // Called by: openPlayerPicker, boot
 function loadRoster() {
@@ -594,8 +604,8 @@ async function continueToPlayerPicker() {
   document.getElementById('new-roster-input').value = '';
   const label = document.querySelector('#modal-picker .modal-label');
   if (label) label.textContent = pickerBuyinDefault
-    ? `Tap to select · ${CUR}${pickerBuyinDefault.toLocaleString()} buy-in pre-filled`
-    : 'Tap to select · set each buy-in below';
+    ? `Tap to select · ${CUR}${pickerBuyinDefault.toLocaleString()} entry fee pre-filled`
+    : 'Tap to select · set each entry fee below';
   document.getElementById('modal-picker').classList.remove('hidden');
 }
 
@@ -603,23 +613,36 @@ async function continueToPlayerPicker() {
 function renderBlindsPresets() {
   const list = document.getElementById('blinds-preset-list');
   list.innerHTML = '';
-  BLIND_PRESETS.forEach(p => {
+  TOURNAMENT_STRUCTURES.forEach(s => {
     const btn = document.createElement('button');
     btn.className = 'blinds-preset-btn';
     btn.innerHTML = `
       <div class="blinds-preset-left">
-        <span class="blinds-preset-level">${p.label}</span>
-        <span class="blinds-preset-desc">${p.desc}</span>
+        <span class="blinds-preset-level">${s.name}</span>
+        <span class="blinds-preset-desc">${s.small} / ${s.big} start · ${s.levelSecs / 60}-min levels</span>
       </div>
-      <span class="blinds-preset-buyin">${CUR}${p.buyin.toLocaleString()}</span>`;
+      <span class="blinds-preset-buyin">${s.chips.toLocaleString()}<small>chips</small></span>`;
     btn.addEventListener('click', () => {
-      pickerBuyinDefault = p.buyin;
-      setDefaultRebuy(p.buyin);
+      applyStructure(s);
       document.getElementById('modal-blinds').classList.add('hidden');
       continueToPlayerPicker();
     });
     list.appendChild(btn);
   });
+}
+
+// Seed the blind timer from a chosen structure and set the flat entry fee.
+function applyStructure(s) {
+  blindSchedule      = buildBlindSchedule(s.small);
+  timerLevel         = 0;
+  timerLevelDuration = s.levelSecs;
+  timerSecondsLeft   = s.levelSecs;
+  timerRunning       = false;
+  clearInterval(timerInterval);
+  const durSel = document.getElementById('timer-duration');
+  if (durSel) durSel.value = String(s.levelSecs);
+  pickerBuyinDefault = DEFAULT_ENTRY_FEE;   // entry fee, same for everyone
+  setDefaultRebuy(DEFAULT_ENTRY_FEE);       // a re-entry costs the same as entry
 }
 
 document.getElementById('btn-open-picker').addEventListener('click', openPlayerPicker);
@@ -629,6 +652,11 @@ function renderRosterChips() {
   const inSession = new Set(currentPlayers.map(p => p.player_name.toLowerCase()));
   const container = document.getElementById('roster-chips');
   container.innerHTML = '';
+
+  if (!roster.length) {
+    container.innerHTML = '<p class="empty-state roster-empty">No players yet — add them below.</p>';
+    return;
+  }
 
   roster.forEach(p => {
     const alreadyIn = inSession.has(p.name.toLowerCase());
@@ -708,6 +736,10 @@ document.getElementById('picker-confirm').addEventListener('click', async () => 
 
 document.getElementById('picker-cancel').addEventListener('click', () => {
   document.getElementById('modal-picker').classList.add('hidden');
+});
+
+document.getElementById('blinds-cancel').addEventListener('click', () => {
+  document.getElementById('modal-blinds').classList.add('hidden');
 });
 
 document.getElementById('blinds-skip').addEventListener('click', () => {
@@ -2278,8 +2310,8 @@ function initCasinoTimer() {
 }
 
 function updateTimerDisplay() {
-  const level = BLIND_LEVELS[timerLevel];
-  const next  = BLIND_LEVELS[timerLevel + 1];
+  const level = blindSchedule[timerLevel];
+  const next  = blindSchedule[timerLevel + 1];
   const mins  = Math.floor(timerSecondsLeft / 60);
   const secs  = timerSecondsLeft % 60;
 
@@ -2299,10 +2331,10 @@ document.getElementById('timer-toggle').addEventListener('click', () => {
     timerInterval = setInterval(() => {
       timerSecondsLeft--;
       if (timerSecondsLeft <= 0) {
-        if (timerLevel < BLIND_LEVELS.length - 1) {
+        if (timerLevel < blindSchedule.length - 1) {
           timerLevel++;
           timerSecondsLeft = timerLevelDuration;
-          toast(`Level ${timerLevel + 1} — ${BLIND_LEVELS[timerLevel].small}/${BLIND_LEVELS[timerLevel].big}`, 'info', 4000);
+          toast(`Level ${timerLevel + 1} — ${blindSchedule[timerLevel].small}/${blindSchedule[timerLevel].big}`, 'info', 4000);
         } else {
           timerRunning = false;
           clearInterval(timerInterval);
@@ -2334,7 +2366,7 @@ document.getElementById('timer-prev').addEventListener('click', () => {
 });
 
 document.getElementById('timer-next-btn').addEventListener('click', () => {
-  if (timerLevel < BLIND_LEVELS.length - 1) {
+  if (timerLevel < blindSchedule.length - 1) {
     clearInterval(timerInterval); timerRunning = false;
     timerLevel++; timerSecondsLeft = timerLevelDuration;
     updateTimerDisplay();
