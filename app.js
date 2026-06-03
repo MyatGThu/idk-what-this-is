@@ -1367,17 +1367,6 @@ document.querySelectorAll('.sub-tab[data-sub]').forEach(tab => {
   });
 });
 
-// Leaderboard sub-tabs (Rankings / P&L Chart)
-document.querySelectorAll('.sub-tab[data-lb-sub]').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.sub-tab[data-lb-sub]').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const target = tab.dataset.lbSub;
-    document.getElementById('lb-rankings').classList.toggle('hidden', target !== 'lb-rankings');
-    document.getElementById('lb-chart').classList.toggle('hidden',    target !== 'lb-chart');
-    if (target === 'lb-chart') loadPLChart();
-  });
-});
 
 /* ═══════════════════════════════════════════════════════════════
    SHARED STATS FETCH
@@ -1640,97 +1629,6 @@ function renderRecords(containerId, records, type) {
    P&L CHART
    ═══════════════════════════════════════════════════════════════ */
 
-let plChartInstance = null;
-
-async function loadPLChart() {
-  const wrapEl = document.getElementById('lb-chart');
-  wrapEl.innerHTML = `
-    <div class="chart-wrap"><canvas id="pl-chart-canvas"></canvas></div>
-    <p class="chart-hint">Tap a player in the legend to show/hide</p>`;
-
-  if (plChartInstance) { plChartInstance.destroy(); plChartInstance = null; }
-
-  const { data: rawData, error } = await api('/stats');
-  if (error || !rawData?.length) {
-    wrapEl.innerHTML = '<p class="empty-state">No settled sessions yet.</p>';
-    return;
-  }
-
-  // Group by session date, accumulate per player
-  const sessionMap = new Map();
-  for (const row of rawData) {
-    if (!sessionMap.has(row.session_date)) {
-      sessionMap.set(row.session_date, { name: row.session_name, date: row.session_date, players: {} });
-    }
-    const buyin = (row.buyins || []).reduce((s, b) => s + Number(b.amount), 0);
-    sessionMap.get(row.session_date).players[row.player_name] =
-      Math.round(((row.final_chips ?? 0) - buyin) * 100) / 100;
-  }
-
-  const sessions   = [...sessionMap.values()].sort((a, b) => new Date(a.date) - new Date(b.date));
-  const labels     = sessions.map(s => formatDate(s.date));
-  const allPlayers = [...new Set(rawData.map(r => r.player_name))];
-
-  const COLORS = ['#2FB67D','#f0b429','#E5484D','#38bdf8','#a78bfa','#fb923c','#34d399','#f472b6','#94a3b8','#fbbf24'];
-
-  const datasets = allPlayers.map((player, i) => {
-    let cumulative = 0;
-    const data = sessions.map(s => {
-      if (s.players[player] !== undefined) {
-        cumulative = Math.round((cumulative + s.players[player]) * 100) / 100;
-        return cumulative;
-      }
-      return null;
-    });
-    if (data.every(d => d === null)) return null;
-    const color = COLORS[i % COLORS.length];
-    return {
-      label: player, data, borderColor: color, backgroundColor: color + '15',
-      tension: 0.35, fill: false, spanGaps: true,
-      pointRadius: 4, pointHoverRadius: 6, borderWidth: 2.5,
-    };
-  }).filter(Boolean);
-
-  const ctx = document.getElementById('pl-chart-canvas').getContext('2d');
-  plChartInstance = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: {
-          position: 'bottom',
-          labels: { color: '#ededf0', font: { family: 'DM Sans', size: 12 }, padding: 16, usePointStyle: true },
-        },
-        tooltip: {
-          backgroundColor: '#101013',
-          borderColor: 'rgba(255,255,255,0.1)',
-          borderWidth: 1,
-          titleColor: '#ededf0',
-          bodyColor:  '#909098',
-          padding: 12,
-          callbacks: {
-            label: ctx => ctx.raw === null ? null : ` ${ctx.dataset.label}:  ${ctx.raw >= 0 ? '+' : ''}${CUR}${ctx.raw}`
-          }
-        }
-      },
-      scales: {
-        x: {
-          ticks:  { color: '#606068', font: { family: 'DM Mono', size: 10 }, maxRotation: 30 },
-          grid:   { color: 'rgba(255,255,255,0.04)' },
-          border: { color: 'rgba(255,255,255,0.08)' },
-        },
-        y: {
-          ticks:  { color: '#606068', font: { family: 'DM Mono', size: 10 }, callback: v => `${CUR}${v}` },
-          grid:   { color: 'rgba(255,255,255,0.04)' },
-          border: { color: 'rgba(255,255,255,0.08)' },
-        }
-      }
-    }
-  });
-}
 
 /* ── Share Results ───────────────────────────────────────────────── */
 

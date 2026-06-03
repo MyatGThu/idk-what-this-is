@@ -228,20 +228,10 @@
           <h1>Leaderboard</h1>
         </div>
       </header>
-      <nav class="sub-tab-nav">
-        <button class="sub-tab active" data-lb-sub="lb-rankings">Rankings</button>
-        <button class="sub-tab" data-lb-sub="lb-chart">P&amp;L Chart</button>
-      </nav>
       <div id="lb-rankings">
         <div id="leaderboard-list" class="leaderboard-list">
           <p class="empty-state">No settled sessions yet.</p>
         </div>
-      </div>
-      <div id="lb-chart" class="hidden">
-        <div class="chart-wrap">
-          <canvas id="pl-chart-canvas"></canvas>
-        </div>
-        <p class="chart-hint">Tap a player in the legend to show/hide</p>
       </div>
     </div>
 
@@ -662,7 +652,6 @@
   <!-- Toast container -->
   <div id="toast-container" class="toast-container"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="config.js"></script>
   <script src="settlement.js"></script>
   <script src="app.js"></script>

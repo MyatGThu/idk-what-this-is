@@ -1421,9 +1421,12 @@ header > .icon-btn { flex-shrink: 0; }
 .lb-record-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 10px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
 }
+
+.lb-record-section:first-child { padding-top: 4px; }
 
 .lb-record-title {
   font-size: 12px;
@@ -2420,23 +2423,6 @@ header > .icon-btn { flex-shrink: 0; }
 
 .home-header-actions { display: flex; align-items: center; gap: 8px; }
 
-/* ── P&L Chart ───────────────────────────────────────────────────── */
-.chart-wrap {
-  position: relative;
-  height: 300px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px 12px 8px;
-}
-
-.chart-hint {
-  font-size: 11px;
-  color: var(--muted);
-  text-align: center;
-  padding: 8px 0 0;
-  font-family: 'JetBrains Mono', monospace;
-}
 
 /* ── Seat Draw ───────────────────────────────────────────────────── */
 .seats-list {
