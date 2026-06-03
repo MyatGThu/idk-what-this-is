@@ -2,7 +2,7 @@
 // Run:  wrangler d1 create poker-live-tracker
 //       wrangler deploy
 // Then replace the URL below with your Worker's URL.
-const API_BASE = 'https://YOUR_WORKER_NAME.workers.dev/api';
+const API_BASE = 'https://poker-live-api.goodgaminggm.workers.dev';
 
 const CURRENCY = '$';
 
