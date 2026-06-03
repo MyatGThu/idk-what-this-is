@@ -1,12 +1,6 @@
 {
-  "name": "poker-tracker",
+  "name": "poker-live",
   "version": "1.0.0",
   "private": true,
-  "description": "Poker Tracker — home game & casino money tracker",
-  "scripts": {
-    "test": "vitest run"
-  },
-  "devDependencies": {
-    "vitest": "^2.1.0"
-  }
+  "description": "Poker Live — pub/APL tournament tracker (placements + season points)"
 }

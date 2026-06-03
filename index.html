@@ -241,17 +241,6 @@
       </div>
     </div>
 
-    <!-- ── SETTLE ─────────────────────────────────────────────── -->
-    <div id="view-settle" class="view">
-      <header>
-        <button class="btn btn-ghost icon-btn" id="btn-back-session"><svg class="icon"><use href="#i-arrow-left"/></svg></button>
-        <div class="header-center"><h2>Settle Up</h2></div>
-        <button id="btn-confirm-settle" class="btn btn-primary">Confirm</button>
-      </header>
-      <p class="settle-hint">Enter each player's final chip count.</p>
-      <div id="settle-list" class="settle-list"></div>
-    </div>
-
     <!-- ── RESULTS ────────────────────────────────────────────── -->
     <div id="view-results" class="view">
       <header>
@@ -390,26 +379,6 @@
   </nav>
 
   <!-- ── MODALS ─────────────────────────────────────────────── -->
-  <div id="modal-overlay" class="modal-overlay hidden">
-    <div class="modal">
-      <div class="modal-header">
-        <h3 id="modal-title">Add Buy-in</h3>
-        <p id="modal-player-label" class="modal-label"></p>
-      </div>
-      <div class="input-with-prefix">
-        <span class="input-prefix">$</span>
-        <input id="modal-buyin-amount" type="number" inputmode="decimal" placeholder="0" class="input input-prefixed" min="1" />
-      </div>
-      <div class="modal-actions modal-actions-split">
-        <button id="modal-remove-buyin" class="btn btn-danger hidden">Remove</button>
-        <div class="modal-actions-right">
-          <button id="modal-cancel" class="btn btn-ghost">Cancel</button>
-          <button id="modal-confirm" class="btn btn-primary">Save</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div id="modal-new-session" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-header">
@@ -482,20 +451,6 @@
       <div id="player-history-list" class="player-history-list"></div>
       <div class="modal-actions">
         <button id="player-history-close" class="btn btn-ghost">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Settle Confirmation Modal -->
-  <div id="modal-settle-confirm" class="modal-overlay hidden">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>Settle Up?</h3>
-        <p class="modal-label">This locks the session. You can re-open it from the results screen if needed.</p>
-      </div>
-      <div class="modal-actions">
-        <button id="settle-confirm-cancel" class="btn btn-ghost">Not yet</button>
-        <button id="settle-confirm-ok" class="btn btn-primary">Let's go <svg class="icon"><use href="#i-check"/></svg></button>
       </div>
     </div>
   </div>
@@ -601,7 +556,6 @@
   <div id="toast-container" class="toast-container"></div>
 
   <script src="config.js"></script>
-  <script src="settlement.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -46,11 +46,6 @@ let currentSession        = null;  // { id, name, status, created_at }
 let currentPlayers        = [];    // [{ id, player_name, final_chips, buyins: [{id, amount}] }]
 let allSessions           = [];    // full list, kept for sessions-search filtering
 
-// Buy-in modal modes
-let modalMode             = 'add'; // 'add' | 'edit'
-let pendingBuyinPlayerId  = null;  // session_player id (add mode)
-let pendingEditBuyinId    = null;  // buyin id (edit mode)
-
 // Delete modal
 let pendingDeleteSessionId = null;
 
@@ -144,10 +139,8 @@ function clearSessionTimer() {
 }
 
 // Results state
-let currentSorted       = [];      // sorted players for active results view
-let adjustedNets        = null;    // Map<player_id, adjusted_net> after force balance
-let originalDiscrepancy = null;    // raw discrepancy amount before force balance was applied
-let justSettled         = false;   // true only when coming directly from the settle confirm
+let currentSorted       = [];      // players sorted by finishing place for the results view
+let justSettled         = false;   // true only on the freshly-finished tournament (for confetti)
 
 // Picker state — names added for the current tournament only (not persisted)
 let pickerSelected  = new Set();
@@ -452,8 +445,6 @@ async function loadPlayers() {
   renderPlayers();
 }
 
-function getDefaultRebuy() { return parseInt(localStorage.getItem('default_rebuy') || '20', 10); }
-function setDefaultRebuy(v) { localStorage.setItem('default_rebuy', v.toString()); }
 
 function setSettledAt(id)   { localStorage.setItem(`settled_at_${id}`, Date.now().toString()); }
 function clearSettledAt(id) { localStorage.removeItem(`settled_at_${id}`); }
@@ -734,13 +725,6 @@ document.getElementById('new-roster-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('btn-add-roster').click();
 });
 
-// Called by: quick re-buy button — no modal, inserts immediately
-async function quickRebuy(playerId, playerName) {
-  const { error } = await api('/buyins', 'POST', { session_player_id: playerId, amount: getDefaultRebuy() });
-  if (error) { toast('Error: ' + error.message, 'error'); return; }
-  await loadPlayers();
-}
-
 // Called by: remove button on player card
 async function removePlayer(playerId, playerName) {
   // Snapshot data for potential undo
@@ -789,80 +773,6 @@ document.getElementById('btn-seats-close').addEventListener('click', () => {
   document.getElementById('modal-seats').classList.add('hidden');
 });
 
-/* ── Buy-in modal (shared for add + edit) ───────────────────────── */
-
-// Called by: Re-buy button — ADD mode
-function openAddBuyinModal(playerId, playerName) {
-  modalMode            = 'add';
-  pendingBuyinPlayerId = playerId;
-  pendingEditBuyinId   = null;
-
-  document.getElementById('modal-title').textContent        = 'Re-buy';
-  document.getElementById('modal-player-label').textContent = `Adding re-buy for ${playerName}`;
-  document.getElementById('modal-buyin-amount').value       = '';
-  document.getElementById('modal-remove-buyin').classList.add('hidden');
-  document.getElementById('modal-overlay').classList.remove('hidden');
-  setTimeout(() => document.getElementById('modal-buyin-amount').focus(), 50);
-}
-
-// Called by: pill click — EDIT mode
-function openEditBuyinModal(buyinId, currentAmount, playerName) {
-  modalMode            = 'edit';
-  pendingEditBuyinId   = buyinId;
-  pendingBuyinPlayerId = null;
-
-  document.getElementById('modal-title').textContent        = 'Edit Buy-in';
-  document.getElementById('modal-player-label').textContent = `Editing entry for ${playerName}`;
-  document.getElementById('modal-buyin-amount').value       = currentAmount;
-  document.getElementById('modal-remove-buyin').classList.remove('hidden');
-  document.getElementById('modal-overlay').classList.remove('hidden');
-  setTimeout(() => document.getElementById('modal-buyin-amount').focus(), 50);
-}
-
-// Save — handles both add and edit
-document.getElementById('modal-confirm').addEventListener('click', async () => {
-  const amount = parseFloat(document.getElementById('modal-buyin-amount').value);
-  if (!amount || amount <= 0) { toast('Enter a valid amount.', 'error'); return; }
-
-  document.getElementById('modal-overlay').classList.add('hidden');
-
-  if (modalMode === 'add') {
-    await api('/buyins', 'POST', { session_player_id: pendingBuyinPlayerId, amount });
-  } else {
-    await api(`/buyins/${pendingEditBuyinId}`, 'PATCH', { amount });
-  }
-
-  pendingBuyinPlayerId = null;
-  pendingEditBuyinId   = null;
-  await loadPlayers();
-});
-
-document.getElementById('modal-cancel').addEventListener('click', () => {
-  document.getElementById('modal-overlay').classList.add('hidden');
-});
-
-// Remove a buy-in entry entirely (edit mode only)
-document.getElementById('modal-remove-buyin').addEventListener('click', async () => {
-  // Find how many buy-ins this player has
-  const player = currentPlayers.find(p =>
-    p.buyins?.some(b => b.id === pendingEditBuyinId)
-  );
-  if (player && player.buyins.length === 1) {
-    toast("Can't remove the only buy-in — remove the player instead.", 'info');
-    return;
-  }
-
-  document.getElementById('modal-overlay').classList.add('hidden');
-  await api(`/buyins/${pendingEditBuyinId}`, 'DELETE');
-  pendingEditBuyinId = null;
-  await loadPlayers();
-});
-
-document.getElementById('modal-buyin-amount').addEventListener('keydown', e => {
-  if (e.key === 'Enter')  document.getElementById('modal-confirm').click();
-  if (e.key === 'Escape') document.getElementById('modal-cancel').click();
-});
-
 /* ── Session Notes ──────────────────────────────────────────────── */
 document.getElementById('session-notes-input').addEventListener('blur', async () => {
   if (!currentSession || currentSession.status !== 'active') return;
@@ -878,117 +788,11 @@ document.getElementById('btn-back-home').addEventListener('click', () => {
 });
 
 document.getElementById('btn-settle').addEventListener('click', () => {
-  if (currentSession.status === 'settled') {
-    openResultsView();
-  } else {
-    if (!currentPlayers.length) { toast('Add at least one player first.', 'info'); return; }
-    document.getElementById('modal-settle-confirm').classList.remove('hidden');
-  }
+  // Only visible once settled — opens the final standings.
+  if (currentSession.status === 'settled') openResultsView();
 });
 
-document.getElementById('settle-confirm-cancel').addEventListener('click', () => {
-  document.getElementById('modal-settle-confirm').classList.add('hidden');
-});
 
-document.getElementById('settle-confirm-ok').addEventListener('click', () => {
-  document.getElementById('modal-settle-confirm').classList.add('hidden');
-  openSettleView();
-});
-
-/* ═══════════════════════════════════════════════════════════════
-   SETTLE VIEW
-   ═══════════════════════════════════════════════════════════════ */
-
-function openSettleView() {
-  show('view-settle', 'forward');
-  const list = document.getElementById('settle-list');
-  list.innerHTML = '';
-
-  // Update hint text for profit/loss mode
-  document.querySelector('.settle-hint').textContent =
-    `Enter each player's profit (+) or loss (−). e.g. won ${CUR}90 → type 90, lost ${CUR}20 → type -20`;
-
-  currentPlayers.forEach(p => {
-    const total = totalBuyin(p.buyins);
-    const row   = document.createElement('div');
-    row.className = 'settle-row';
-    row.innerHTML = `
-      <div class="settle-row-info">
-        <span class="settle-row-name">${p.player_name}</span>
-        <span class="settle-row-buyin">Buy-in: ${CUR}${total}</span>
-      </div>
-      <div class="settle-row-right">
-        <span class="settle-net" id="net-${p.id}"></span>
-        <button class="btn-busted" data-buyin="${total}" title="Lost everything">Busted</button>
-        <input class="input settle-pl-input" type="number" placeholder="+90 or −20"
-               step="any" data-player-id="${p.id}" data-buyin="${total}" />
-      </div>`;
-
-    // Busted button — auto-fills full loss so player doesn't have to calculate
-    const bustedBtn = row.querySelector('.btn-busted');
-    const inp       = row.querySelector('input');
-    const netEl     = row.querySelector('.settle-net');
-
-    bustedBtn.addEventListener('click', () => {
-      inp.value = -total;
-      inp.dispatchEvent(new Event('input')); // trigger live indicator
-    });
-    inp.addEventListener('input', () => {
-      const pl = parseFloat(inp.value);
-      if (isNaN(pl) || inp.value === '') {
-        netEl.textContent = '';
-        netEl.className   = 'settle-net';
-        inp.classList.remove('pl-positive', 'pl-negative');
-        return;
-      }
-      const finalStack = Math.round((total + pl) * 100) / 100;
-      if (finalStack < 0) {
-        netEl.textContent = 'exceeds buy-in';
-        netEl.className   = 'settle-net negative';
-        inp.classList.add('pl-negative');
-        inp.classList.remove('pl-positive');
-        return;
-      }
-      // Show final stack so player can double-check
-      netEl.textContent = pl === 0 ? '' : `Stack ${CUR}${finalStack}`;
-      netEl.className   = `settle-net ${pl > 0 ? 'positive' : pl < 0 ? 'negative' : ''}`;
-      inp.classList.toggle('pl-positive', pl > 0);
-      inp.classList.toggle('pl-negative', pl < 0);
-    });
-
-    list.appendChild(row);
-  });
-}
-
-document.getElementById('btn-confirm-settle').addEventListener('click', async () => {
-  const inputs  = document.querySelectorAll('#settle-list input');
-  const updates = [];
-
-  for (const inp of inputs) {
-    const pl    = parseFloat(inp.value);
-    const buyin = parseFloat(inp.dataset.buyin);
-    if (isNaN(pl)) { toast('Enter a profit or loss for all players.', 'error'); return; }
-    const finalChips = Math.round((buyin + pl) * 100) / 100;
-    if (finalChips < 0) {
-      toast(`Loss exceeds buy-in of ${CUR}${buyin}.`, 'error'); return;
-    }
-    updates.push({ id: inp.dataset.playerId, finalChips });
-  }
-
-  for (const u of updates) {
-    await api(`/session-players/${u.id}`, 'PATCH', { final_chips: u.finalChips });
-  }
-
-  await api(`/sessions/${currentSession.id}`, 'PATCH', { status: 'settled' });
-  currentSession.status = 'settled';
-  setSettledAt(currentSession.id);
-
-  justSettled = true;
-  await loadPlayers();
-  openResultsView();
-});
-
-document.getElementById('btn-back-session').addEventListener('click', () => show('view-session', 'back'));
 
 /* ═══════════════════════════════════════════════════════════════
    RESULTS VIEW
@@ -1040,153 +844,6 @@ function renderStandings(fieldSize) {
   });
 }
 
-// Returns net for a player, using adjusted value if force balance was applied.
-// Called by: renderResultCards, calculateSettlements, renderBalanceCheck
-function getNet(p) {
-  if (adjustedNets?.has(p.id)) return adjustedNets.get(p.id);
-  return computeNet(p.final_chips, p.buyins); // computeNet from settlement.js
-}
-
-// Called by: openResultsView, applyForceBalance
-function renderResultCards() {
-  const list        = document.getElementById('results-list');
-  list.innerHTML    = '';
-
-  // Re-sort by adjusted net each render
-  const sorted = [...currentSorted].sort((a, b) => getNet(b) - getNet(a));
-
-  sorted.forEach((p, i) => {
-    const buyin       = totalBuyin(p.buyins);
-    const chips       = p.final_chips ?? 0;
-    const net         = getNet(p);
-    const rawNet      = Math.round((chips - buyin) * 100) / 100;
-    const isAdjusted  = adjustedNets?.has(p.id) && net !== rawNet;
-
-    const rankClass = i === 0 ? 'result-rank-1' : i === 1 ? 'result-rank-2' : i === 2 ? 'result-rank-3' : '';
-    const medalClass = ['gold', 'silver', 'bronze'][i] ?? '';
-    const card = document.createElement('div');
-    card.className = `result-card ${net > 0 ? 'winner' : net < 0 ? 'loser' : ''} ${rankClass}`.trim();
-    card.innerHTML = `
-      <span class="result-rank ${medalClass}">${i + 1}</span>
-      <div class="result-info">
-        <span class="result-name">${p.player_name}</span>
-        <span class="result-detail">in ${CUR}${buyin} · out ${CUR}${chips}${isAdjusted ? ' · <span class="adj-badge">adj</span>' : ''}</span>
-      </div>
-      <span class="net-gain ${net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero'}">
-        ${net >= 0 ? '+' : ''}${CUR}${net}
-      </span>`;
-    list.appendChild(card);
-  });
-}
-
-// Calculates minimum transactions to settle all debts.
-// Delegates to the tested pure function in settlement.js.
-// Called by: renderSettlements
-function calculateSettlements() {
-  return minimalSettlements(
-    currentSorted.map(p => ({ name: p.player_name, net: getNet(p) }))
-  );
-}
-
-// Called by: openResultsView, applyForceBalance
-function renderSettlements() {
-  const settlements = calculateSettlements();
-  const el = document.getElementById('settlements-list');
-  el.innerHTML = '';
-
-  if (!settlements.length) {
-    el.innerHTML = '<p class="no-settlements">No payments needed — everyone is square.</p>';
-    return;
-  }
-
-  settlements.forEach(t => {
-    const row = document.createElement('div');
-    row.className = 'settlement-row';
-    row.innerHTML = `
-      <span class="settlement-from">${t.from}</span>
-      <span class="settlement-arrow">→</span>
-      <span class="settlement-to">${t.to}</span>
-      <span class="settlement-amount">${CUR}${t.amount}</span>`;
-    el.appendChild(row);
-  });
-}
-
-// Called by: openResultsView, applyForceBalance
-function renderBalanceCheck() {
-  const totalNet  = currentSorted.reduce((sum, p) => sum + getNet(p), 0);
-  const D         = Math.round(totalNet * 100) / 100;
-  const el        = document.getElementById('balance-check');
-  const wasForced = adjustedNets !== null;
-
-  if (Math.abs(D) < 0.01) {
-    if (wasForced) {
-      const amount  = Math.abs(originalDiscrepancy);
-      const action  = originalDiscrepancy < 0
-        ? `${CUR}${amount} removed from losers' losses`
-        : `${CUR}${amount} removed from winners' gains`;
-      el.className = 'balance-check balanced forced';
-      el.innerHTML = `
-        <span class="balance-check-icon"><svg class="icon"><use href="#i-check"/></svg></span>
-        <div class="balance-check-body">
-          <div>${action}</div>
-          <div class="balance-check-detail">Winners unchanged — losers absorbed the discrepancy</div>
-        </div>
-        <button class="btn btn-force" id="btn-reset-balance">Reset</button>`;
-      document.getElementById('btn-reset-balance').addEventListener('click', resetForceBalance);
-    } else {
-      el.className = 'hidden';
-    }
-    return;
-  }
-
-  // Determine direction and who absorbs
-  const isNegative = D < 0;
-  const absD       = Math.abs(D);
-
-  // Negative D → needs losers to reduce. Positive D → needs winners to reduce.
-  const hasLosers  = currentSorted.some(p => ((p.final_chips ?? 0) - totalBuyin(p.buyins)) < 0);
-  const hasWinners = currentSorted.some(p => ((p.final_chips ?? 0) - totalBuyin(p.buyins)) > 0);
-  const canForce   = isNegative ? hasLosers : hasWinners;
-
-  const mainMsg = isNegative
-    ? `${CUR}${absD} in chips missing from count`
-    : `${CUR}${absD} more chips counted than exist`;
-  const hintMsg = isNegative
-    ? `Losers' losses will be reduced — winners unchanged`
-    : `Winners' gains will be reduced — losers unchanged`;
-
-  el.className = 'balance-check unbalanced';
-  el.innerHTML = `
-    <span class="balance-check-icon"><svg class="icon"><use href="#i-alert"/></svg></span>
-    <div class="balance-check-body">
-      <div>${mainMsg}</div>
-      <div class="balance-check-detail">${hintMsg}</div>
-    </div>
-    ${canForce ? `<button class="btn btn-force" id="btn-force-balance">Force Balance</button>` : ''}`;
-
-  document.getElementById('btn-force-balance')?.addEventListener('click', applyForceBalance);
-}
-
-// Negative D → reduce losers' losses proportionally. Winners unchanged.
-// Positive D → reduce winners' gains proportionally. Losers unchanged.
-// Called by: Force Balance button
-function applyForceBalance() {
-  // Raw chip values → tested pure forceBalance() in settlement.js
-  const rawNets = currentSorted.map(p => ({ id: p.id, net: computeNet(p.final_chips, p.buyins) }));
-  const result  = forceBalance(rawNets);
-
-  if (!result) return;                                                        // already balanced
-  if (result.error === 'no-losers')  { toast("Can't spread — no losers.",  'info'); return; }
-  if (result.error === 'no-winners') { toast("Can't spread — no winners.", 'info'); return; }
-
-  originalDiscrepancy = result.discrepancy;
-  adjustedNets        = result.adjusted;
-
-  renderResultCards();
-  renderSettlements();
-  renderBalanceCheck();
-}
-
 document.getElementById('btn-back-results-home').addEventListener('click', () => {
   clearSessionTimer();
   loadHome();
@@ -1218,16 +875,6 @@ document.getElementById('reopen-confirm-ok').addEventListener('click', async () 
   sessionTimerInterval = setInterval(() => updateSessionTimer(currentSession.created_at), 60000);
   toast('Session re-opened.', 'success');
 });
-
-// Undoes force balance and restores raw chip values.
-// Called by: Reset button in renderBalanceCheck
-function resetForceBalance() {
-  adjustedNets        = null;
-  originalDiscrepancy = null;
-  renderResultCards();
-  renderSettlements();
-  renderBalanceCheck();
-}
 
 /* ═══════════════════════════════════════════════════════════════
    DASHBOARD VIEW
@@ -1614,8 +1261,6 @@ document.getElementById('player-history-close').addEventListener('click', () => 
 /* ═══════════════════════════════════════════════════════════════
    UTILITIES
    ═══════════════════════════════════════════════════════════════ */
-
-// totalBuyin() is defined in settlement.js (loaded before app.js) and tested there.
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString(undefined, {

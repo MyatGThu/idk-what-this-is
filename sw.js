@@ -5,13 +5,12 @@
    API requests (cross-origin Worker) are never intercepted.
    ───────────────────────────────────────────────────────────── */
 
-const CACHE = 'poker-live-v1';
+const CACHE = 'poker-live-v2';
 const SHELL = [
   './',
   './index.html',
   './style.css',
   './app.js',
-  './settlement.js',
   './config.js',
   './manifest.json',
   './icon-192.png',
