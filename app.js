@@ -80,11 +80,29 @@ let blindSchedule = buildBlindSchedule(25); // default opening 25/50
 // Tournament structure presets a pub would actually run. APL is "play for fun":
 // tournament chips have no cash value, everyone gets the same starting stack, blinds
 // escalate, and a flat entry fee (where permitted) is the same for all players.
+// `breakdown` = suggested physical chips per player for the starting stack
+// (pairs of [denomination, count]); totals must equal `chips`.
 const TOURNAMENT_STRUCTURES = [
-  { name: 'Turbo',    chips: 5000,  small: 25,  big: 50,  levelSecs: 900  },
-  { name: 'Standard', chips: 10000, small: 50,  big: 100, levelSecs: 1200 },
-  { name: 'Deep',     chips: 20000, small: 100, big: 200, levelSecs: 1200 },
+  { name: 'Turbo',    chips: 5000,  small: 25,  big: 50,  levelSecs: 900,  breakdown: [[25, 8], [100, 8], [500, 4], [1000, 2]] },
+  { name: 'Standard', chips: 10000, small: 50,  big: 100, levelSecs: 1200, breakdown: [[25, 8], [100, 8], [500, 6], [1000, 6]] },
+  { name: 'Deep',     chips: 20000, small: 100, big: 200, levelSecs: 1200, breakdown: [[100, 10], [500, 8], [1000, 5], [5000, 2]] },
 ];
+let activeStructure = null;   // the structure chosen for the current tournament
+
+// Chip denomination ladder used by the colour-up guide.
+const CHIP_DENOMS = [25, 100, 500, 1000, 5000, 25000];
+
+// Guide: the smallest chip worth keeping on the table at a given small blind —
+// the largest denomination that isn't smaller than the blind. As blinds climb
+// this rises, which is the cue to colour up / race off the smaller chips.
+function smallestChip(smallBlind) {
+  return [...CHIP_DENOMS].reverse().find(d => d <= smallBlind) || CHIP_DENOMS[0];
+}
+
+// "8 × 25 · 8 × 100 · …" for a structure's starting-stack breakdown.
+function formatBreakdown(breakdown) {
+  return (breakdown || []).map(([d, n]) => `${n} × ${d.toLocaleString()}`).join('  ·  ');
+}
 
 // ── Placement scoring ──────────────────────────────────────────────
 // A player's finishing place is stored in session_players.final_chips
@@ -608,8 +626,9 @@ function renderBlindsPresets() {
   });
 }
 
-// Seed the blind timer from a chosen structure and set the flat entry fee.
+// Seed the blind timer + chip guides from a chosen structure.
 function applyStructure(s) {
+  activeStructure    = s;
   blindSchedule      = buildBlindSchedule(s.small);
   timerLevel         = 0;
   timerLevelDuration = s.levelSecs;
@@ -688,6 +707,7 @@ document.getElementById('blinds-cancel').addEventListener('click', () => {
 });
 
 document.getElementById('blinds-skip').addEventListener('click', () => {
+  activeStructure = null;   // manual: no structure → no starting-stack breakdown
   document.getElementById('modal-blinds').classList.add('hidden');
   continueToPlayerPicker();
 });
@@ -2161,6 +2181,17 @@ function updateTimerDisplay() {
   const el = document.getElementById('timer-countdown');
   el.textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
   el.className   = `timer-countdown${timerSecondsLeft <= 60 ? ' timer-warning' : ''}`;
+
+  // Chip guides: smallest chip worth keeping + the starting-stack breakdown.
+  document.getElementById('timer-smallest-chip').textContent = smallestChip(level.small).toLocaleString();
+  const stackRow = document.getElementById('timer-stack-row');
+  if (activeStructure) {
+    document.getElementById('timer-stack-total').textContent     = activeStructure.chips.toLocaleString();
+    document.getElementById('timer-stack-breakdown').textContent = formatBreakdown(activeStructure.breakdown);
+    stackRow.classList.remove('hidden');
+  } else {
+    stackRow.classList.add('hidden');
+  }
 }
 
 document.getElementById('timer-toggle').addEventListener('click', () => {
@@ -2170,9 +2201,14 @@ document.getElementById('timer-toggle').addEventListener('click', () => {
       timerSecondsLeft--;
       if (timerSecondsLeft <= 0) {
         if (timerLevel < blindSchedule.length - 1) {
+          const prevChip = smallestChip(blindSchedule[timerLevel].small);
           timerLevel++;
           timerSecondsLeft = timerLevelDuration;
           toast(`Level ${timerLevel + 1} — ${blindSchedule[timerLevel].small}/${blindSchedule[timerLevel].big}`, 'info', 4000);
+          const nowChip = smallestChip(blindSchedule[timerLevel].small);
+          if (nowChip > prevChip) {
+            toast(`Colour up — race off the ${prevChip.toLocaleString()} chips`, 'info', 5000);
+          }
         } else {
           timerRunning = false;
           clearInterval(timerInterval);

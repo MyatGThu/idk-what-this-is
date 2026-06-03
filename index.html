@@ -334,6 +334,16 @@
             <span id="timer-next-blinds" class="timer-next-blinds">10 / 20</span>
           </div>
         </div>
+        <div class="timer-chips" id="timer-chips">
+          <div class="timer-chip-row">
+            <span class="timer-chip-label"><svg class="icon"><use href="#i-coins"/></svg> Smallest chip in play</span>
+            <span id="timer-smallest-chip" class="timer-chip-val">25</span>
+          </div>
+          <div class="timer-chip-row hidden" id="timer-stack-row">
+            <span class="timer-chip-label">Starting stack <span id="timer-stack-total"></span></span>
+            <span id="timer-stack-breakdown" class="timer-chip-breakdown"></span>
+          </div>
+        </div>
         <div class="timer-controls">
           <button id="timer-prev" class="btn btn-ghost"><svg class="icon"><use href="#i-chevron-left"/></svg> Prev</button>
           <button id="timer-toggle" class="btn btn-primary timer-toggle-btn"><svg class="icon"><use href="#i-play"/></svg> Start</button>
