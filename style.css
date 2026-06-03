@@ -626,6 +626,14 @@ header > .icon-btn { flex-shrink: 0; }
 .picker-buyin-row .input-with-prefix { width: 110px; flex-shrink: 0; }
 .picker-buyin-row .input { font-family: 'JetBrains Mono', monospace; }
 
+.picker-count {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  padding: 2px 0;
+}
+
 /* ── Blinds Preset Modal ─────────────────────────────────────── */
 .modal-blinds { max-width: 360px; }
 
@@ -776,6 +784,85 @@ header > .icon-btn { flex-shrink: 0; }
 
 /* ── Player Cards ────────────────────────────────────────────────── */
 .players-list { display: flex; flex-direction: column; gap: 10px; }
+
+/* ── Tournament bust-out view ───────────────────────────────────── */
+.tourney-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 2px 8px;
+}
+.tourney-left { font-family: var(--font-display); font-size: 0.95rem; color: var(--muted-hi); }
+.tourney-left strong { color: var(--text); font-size: 1.15rem; }
+
+.tourney-divider {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 14px 2px 2px;
+}
+
+.tourney-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 13px 16px;
+  animation: slideUp 0.2s var(--ease);
+}
+.tourney-card.active { border-color: var(--border-hi); }
+.tourney-card.busted { background: var(--surface); opacity: 0.78; }
+.tourney-card.winner {
+  opacity: 1;
+  border-color: rgba(240,180,41,0.4);
+  background: linear-gradient(135deg, var(--surface) 0%, rgba(240,180,41,0.06) 100%);
+}
+
+.tourney-card .tourney-name {
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.tourney-actions { display: flex; align-items: center; gap: 8px; }
+
+.btn-knockout {
+  background: var(--surface3);
+  border: 1px solid var(--border-hi);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 7px 13px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn-knockout:hover { background: var(--loss-dim); border-color: var(--loss); color: var(--loss); }
+
+.tourney-place {
+  min-width: 38px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--muted-hi);
+}
+.tourney-place.gold   { color: var(--gold);   }
+.tourney-place.silver { color: var(--silver); }
+.tourney-place.bronze { color: var(--bronze); }
+
+.tourney-pts {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--win);
+}
 
 .player-card {
   background: var(--surface);

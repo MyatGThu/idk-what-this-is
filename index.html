@@ -130,11 +130,11 @@
       <div id="dash-leader" class="dash-leader-card"></div>
       <div class="dash-stats-row">
         <div class="dash-stat-card dash-stat-win">
-          <p class="dash-stat-label"><svg class="icon"><use href="#i-trophy"/></svg> Best Win</p>
+          <p class="dash-stat-label"><svg class="icon"><use href="#i-trophy"/></svg> Most Wins</p>
           <div id="dash-top-win"></div>
         </div>
-        <div class="dash-stat-card dash-stat-loss">
-          <p class="dash-stat-label"><svg class="icon"><use href="#i-trending-down"/></svg> Worst Loss</p>
+        <div class="dash-stat-card dash-stat-win">
+          <p class="dash-stat-label"><svg class="icon"><use href="#i-calendar"/></svg> Most Played</p>
           <div id="dash-top-loss"></div>
         </div>
       </div>
@@ -166,56 +166,31 @@
         </div>
       </header>
 
-      <nav class="sub-tab-nav">
-        <button class="sub-tab active" data-sub="rec-main">Records</button>
-        <button class="sub-tab" data-sub="rec-avg">Averages</button>
-      </nav>
-
-      <!-- Records sub-tab -->
       <div id="rec-main">
         <div class="lb-record-section">
-          <p class="lb-record-title"><svg class="icon"><use href="#i-coins"/></svg> Most Money Won</p>
-          <p class="lb-record-desc">Sum of winning sessions only — losses not counted</p>
-          <div id="lb-total-won" class="lb-records"></div>
+          <p class="lb-record-title"><svg class="icon"><use href="#i-trophy"/></svg> Most Wins</p>
+          <p class="lb-record-desc">Tournament victories — 1st-place finishes</p>
+          <div id="rec-most-wins" class="lb-records"></div>
         </div>
         <div class="lb-record-section">
-          <p class="lb-record-title"><svg class="icon"><use href="#i-trophy"/></svg> Biggest Single Session Win</p>
-          <p class="lb-record-desc">Record holder — highest net gain in one game night</p>
-          <div id="lb-biggest-win" class="lb-records"></div>
+          <p class="lb-record-title"><svg class="icon"><use href="#i-coins"/></svg> Most Points</p>
+          <p class="lb-record-desc">Season total across every tournament played</p>
+          <div id="rec-most-points" class="lb-records"></div>
         </div>
         <div class="lb-record-section">
-          <p class="lb-record-title"><svg class="icon"><use href="#i-trending-down"/></svg> Biggest Single Session Loss</p>
-          <p class="lb-record-desc">Record holder — worst net loss in one game night</p>
-          <div id="lb-biggest-loss" class="lb-records"></div>
+          <p class="lb-record-title"><svg class="icon"><use href="#i-target"/></svg> Most Final Tables</p>
+          <p class="lb-record-desc">Top-3 finishes — the regular contenders</p>
+          <div id="rec-final-tables" class="lb-records"></div>
         </div>
         <div class="lb-record-section">
-          <p class="lb-record-title"><svg class="icon"><use href="#i-calendar"/></svg> Most Sessions Attended</p>
-          <p class="lb-record-desc">Who shows up the most — total sessions played</p>
-          <div id="lb-attendance" class="lb-records"></div>
+          <p class="lb-record-title"><svg class="icon"><use href="#i-bar-chart"/></svg> Best Average Finish</p>
+          <p class="lb-record-desc">Lowest average place — minimum 3 tournaments</p>
+          <div id="rec-best-avg" class="lb-records"></div>
         </div>
         <div class="lb-record-section">
-          <p class="lb-record-title"><svg class="icon"><use href="#i-target"/></svg> Most Consistent</p>
-          <p class="lb-record-desc">Lowest variance in results — minimum 3 sessions required</p>
-          <div id="lb-consistent" class="lb-records"></div>
-        </div>
-      </div>
-
-      <!-- Averages sub-tab -->
-      <div id="rec-avg" class="hidden">
-        <div class="lb-record-section">
-          <p class="lb-record-title"><svg class="icon"><use href="#i-bar-chart"/></svg> Avg Net Per Session</p>
-          <p class="lb-record-desc">Total net ÷ sessions played — most consistent performer</p>
-          <div id="lb-avg-net" class="lb-records"></div>
-        </div>
-        <div class="lb-record-section">
-          <p class="lb-record-title"><svg class="icon"><use href="#i-trending-up"/></svg> Avg Win Per Session</p>
-          <p class="lb-record-desc">Total winnings ÷ winning sessions — how much they typically take home</p>
-          <div id="lb-avg-win" class="lb-records"></div>
-        </div>
-        <div class="lb-record-section">
-          <p class="lb-record-title"><svg class="icon"><use href="#i-trending-down"/></svg> Avg Loss Per Session</p>
-          <p class="lb-record-desc">Total losses ÷ losing sessions — how much they typically drop</p>
-          <div id="lb-avg-loss" class="lb-records"></div>
+          <p class="lb-record-title"><svg class="icon"><use href="#i-calendar"/></svg> Most Played</p>
+          <p class="lb-record-desc">Who shows up the most — tournaments entered</p>
+          <div id="rec-most-played" class="lb-records"></div>
         </div>
       </div>
     </div>
@@ -256,21 +231,13 @@
       <button id="btn-open-picker" class="btn btn-primary btn-block">+ Select Players</button>
       <button id="btn-randomize-seats" class="btn btn-ghost btn-block hidden"><svg class="icon"><use href="#i-shuffle"/></svg> Randomize Seats</button>
       <button id="btn-blinds-timer" class="btn btn-ghost btn-block"><svg class="icon"><use href="#i-clock"/></svg> Blinds Timer</button>
-      <div id="rebuy-pill-wrap" class="rebuy-pill-wrap hidden">
-        <span class="rebuy-pill-label">Quick rebuy</span>
-        <button id="btn-set-rebuy" class="rebuy-pill-btn">$<span id="rebuy-amount-display">20</span> <svg class="icon"><use href="#i-pencil"/></svg></button>
-      </div>
-      <div id="session-pot-bar" class="session-pot-bar hidden">
-        <span class="pot-bar-label">♣ Live Pot</span>
-        <span id="session-live-pot" class="pot-bar-amount">$0</span>
-      </div>
       <div id="dealer-tip" class="dealer-tip hidden">
         <span class="dealer-tip-icon">♠♠</span>
         <span class="dealer-tip-text">6+ players — consider using <strong>2 dealers</strong> to keep the game moving</span>
         <button id="dealer-tip-dismiss" class="dealer-tip-dismiss" title="Dismiss"><svg class="icon"><use href="#i-x"/></svg></button>
       </div>
       <div id="players-list" class="players-list">
-        <p class="empty-state">Select players above to start tracking.</p>
+        <p class="empty-state">Add players above to start the tournament.</p>
       </div>
     </div>
 
@@ -296,19 +263,7 @@
         <button id="btn-share-results" class="btn btn-ghost icon-btn" title="Share results"><svg class="icon"><use href="#i-share"/></svg></button>
       </header>
       <div id="results-list" class="results-list"></div>
-      <div class="section-block">
-        <div class="section-header-row">
-          <p class="section-label">♦ Settlements</p>
-          <button id="btn-copy-settlements" class="btn-copy-settlements">Copy</button>
-        </div>
-        <div id="settlements-list"></div>
-      </div>
-      <div id="balance-check" class="balance-check hidden"></div>
-      <div class="pot-summary">
-        <span class="pot-label">♣ Total Pot</span>
-        <span id="results-pot" class="pot-amount">$0</span>
-      </div>
-      <button id="btn-reopen-session" class="btn btn-ghost btn-block btn-reopen"><svg class="icon"><use href="#i-rotate-ccw"/></svg> Re-open Session</button>
+      <button id="btn-reopen-session" class="btn btn-ghost btn-block btn-reopen"><svg class="icon"><use href="#i-rotate-ccw"/></svg> Re-open Tournament</button>
     </div>
 
     <!-- ── CASINO DASHBOARD ──────────────────────────────────── -->
@@ -479,7 +434,7 @@
     <div class="modal modal-picker">
       <div class="modal-header">
         <h3>Who's Playing?</h3>
-        <p class="modal-label">Tap to select · set each buy-in below</p>
+        <p class="modal-label">Tap names to add them to the tournament</p>
       </div>
       <div id="roster-chips" class="roster-chips"></div>
       <div id="picker-buyins" class="picker-buyins"></div>
@@ -545,24 +500,6 @@
       <div class="modal-actions">
         <button id="reopen-confirm-cancel" class="btn btn-ghost">Cancel</button>
         <button id="reopen-confirm-ok" class="btn btn-primary">Re-open</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Set Rebuy Amount Modal -->
-  <div id="modal-set-rebuy" class="modal-overlay hidden">
-    <div class="modal">
-      <div class="modal-header">
-        <h3>Quick Rebuy Amount</h3>
-        <p class="modal-label">Default applies to all players in this session</p>
-      </div>
-      <div class="input-with-prefix">
-        <span class="input-prefix">$</span>
-        <input id="input-rebuy-amount" type="number" inputmode="decimal" placeholder="20" class="input input-prefixed" min="1" />
-      </div>
-      <div class="modal-actions">
-        <button id="rebuy-amount-cancel" class="btn btn-ghost">Cancel</button>
-        <button id="rebuy-amount-confirm" class="btn btn-primary">Set</button>
       </div>
     </div>
   </div>

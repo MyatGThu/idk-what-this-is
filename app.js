@@ -85,9 +85,20 @@ const TOURNAMENT_STRUCTURES = [
   { name: 'Standard', chips: 10000, small: 50,  big: 100, levelSecs: 1200 },
   { name: 'Deep',     chips: 20000, small: 100, big: 200, levelSecs: 1200 },
 ];
-// Flat entry fee pre-filled per player (overridable in config.js via ENTRY_FEE).
-const DEFAULT_ENTRY_FEE = (typeof ENTRY_FEE !== 'undefined' && Number(ENTRY_FEE) > 0)
-  ? Number(ENTRY_FEE) : 10;
+
+// ── Placement scoring ──────────────────────────────────────────────
+// A player's finishing place is stored in session_players.final_chips
+// (1 = winner, 2 = runner-up, …; null = still in / not yet recorded).
+// Points scheme — the single place to change scoring. Default scales with
+// field size: winning an N-player game = N points, busting first = 1 point.
+function placePoints(place, fieldSize) {
+  if (!place || !fieldSize) return 0;
+  return Math.max(1, fieldSize - place + 1);
+}
+const ordinal = n => {
+  const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
 let timerInterval     = null;
 let timerRunning      = false;
 let timerLevel        = 0;
@@ -123,7 +134,6 @@ let justSettled         = false;   // true only when coming directly from the se
 // Roster state
 let roster          = [];          // [{id, name}] from players table
 let pickerSelected  = new Set();   // names selected in the picker
-let pickerBuyinDefault = null;     // buy-in pre-fill from blinds preset; null = enter manually
 
 /* ═══════════════════════════════════════════════════════════════
    TOAST NOTIFICATIONS
@@ -392,8 +402,11 @@ async function openSession(session, dir = 'none') {
   document.getElementById('session-notes-input').value       = session.notes || '';
   document.getElementById('session-notes-input').readOnly    = session.status === 'settled';
 
+  // Header button only appears once settled (→ View Results). During play the
+  // tournament ends by knocking players out, so there's no manual "settle".
   const settleBtn = document.getElementById('btn-settle');
-  settleBtn.textContent = session.status === 'settled' ? 'View Results' : 'Settle Up';
+  settleBtn.textContent = 'View Results';
+  settleBtn.classList.toggle('hidden', session.status !== 'settled');
 
   document.getElementById('btn-blinds-timer').classList.toggle('hidden', session.status === 'settled');
 
@@ -435,119 +448,117 @@ function isLockedForDelete(session) {
 }
 
 // Called by: loadPlayers()
+// Tournament view: knock players out as they bust; the last standing wins.
+// A player's finishing place lives in p.final_chips (null = still in).
 function renderPlayers() {
-  // Live pot — only show during active sessions with at least one player
-  const pot    = currentPlayers.reduce((sum, p) => sum + totalBuyin(p.buyins), 0);
-  const potBar = document.getElementById('session-pot-bar');
-  const potEl  = document.getElementById('session-live-pot');
-  if (currentPlayers.length > 0 && currentSession.status === 'active') {
-    potEl.textContent = `${CUR}${pot}`;
-    potBar.classList.remove('hidden');
-  } else {
-    potBar.classList.add('hidden');
-  }
-
-  const seatsBtn   = document.getElementById('btn-randomize-seats');
-  const dealerTip  = document.getElementById('dealer-tip');
-  const rebuyWrap  = document.getElementById('rebuy-pill-wrap');
-  const rebuyDisp  = document.getElementById('rebuy-amount-display');
-
-  if (currentPlayers.length >= 2 && currentSession.status === 'active') {
-    seatsBtn.classList.remove('hidden');
-  } else {
-    seatsBtn.classList.add('hidden');
-  }
-
-  if (currentPlayers.length > 5 && currentSession.status === 'active' && !dealerTipDismissed) {
-    dealerTip.classList.remove('hidden');
-  } else {
-    dealerTip.classList.add('hidden');
-  }
-
-  if (currentPlayers.length > 0 && currentSession.status === 'active') {
-    rebuyDisp.textContent = getDefaultRebuy();
-    rebuyWrap.classList.remove('hidden');
-  } else {
-    rebuyWrap.classList.add('hidden');
-  }
-
-  const list = document.getElementById('players-list');
+  const seatsBtn  = document.getElementById('btn-randomize-seats');
+  const dealerTip = document.getElementById('dealer-tip');
   const isSettled = currentSession.status === 'settled';
 
+  const active = currentPlayers.filter(p => p.final_chips == null);
+  const busted = currentPlayers.filter(p => p.final_chips != null)
+                   .sort((a, b) => a.final_chips - b.final_chips); // best finish first
+  const fieldSize = currentPlayers.length;
+
+  seatsBtn.classList.toggle('hidden', !(active.length >= 2 && !isSettled));
+  dealerTip.classList.toggle('hidden', !(active.length > 5 && !isSettled && !dealerTipDismissed));
+
+  const list = document.getElementById('players-list');
+
   if (!currentPlayers.length) {
-    list.innerHTML = '<p class="empty-state">Add players above to start tracking.</p>';
+    list.innerHTML = '<p class="empty-state">Add players above to start the tournament.</p>';
     return;
   }
 
   list.innerHTML = '';
-  currentPlayers.forEach(p => {
-    const total   = totalBuyin(p.buyins);
-    const card    = document.createElement('div');
-    card.className = 'player-card';
 
-    // Each pill is a clickable button for editing
-    const sortedBuyins = [...(p.buyins || [])].sort((a, b) =>
-      new Date(a.created_at) - new Date(b.created_at)
-    );
+  // Status bar: how many remain + undo last knockout
+  if (!isSettled) {
+    const status = document.createElement('div');
+    status.className = 'tourney-status';
+    status.innerHTML = `
+      <span class="tourney-left"><strong>${active.length}</strong> of ${fieldSize} left</span>
+      ${busted.length ? `<button class="btn btn-ghost btn-sm" id="btn-undo-knockout"><svg class="icon"><use href="#i-rotate-ccw"/></svg> Undo</button>` : ''}`;
+    list.appendChild(status);
+  }
 
-    const pills = sortedBuyins.map((b, i) => `
-      <button class="buyin-pill ${i === 0 ? 'first' : ''} edit-buyin-btn"
-              data-buyin-id="${b.id}"
-              data-amount="${b.amount}"
-              data-player="${p.player_name}"
-              title="Click to edit">
-        ${CUR}${b.amount}
-        <span class="pill-edit"><svg class="icon"><use href="#i-pencil"/></svg></span>
-      </button>`).join('');
-
+  // Still in
+  active.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'tourney-card active';
     card.innerHTML = `
-      <div class="player-card-header">
-        <span class="player-name">${p.player_name}</span>
-        <div class="player-header-right">
-          <div class="player-total">
-            <span class="player-total-label">Total in</span>
-            <span class="player-total-amount">${CUR}${total}</span>
-          </div>
-          ${!isSettled ? `<button class="btn-remove-player" data-id="${p.id}" data-name="${p.player_name}" title="Remove player"><svg class="icon"><use href="#i-x"/></svg></button>` : ''}
-        </div>
-      </div>
-      <div class="buyin-history">${pills}</div>
-      ${!isSettled ? `
-        <div class="player-card-footer">
-          <button class="btn-quick-rebuy quick-rebuy-btn"
-                  data-id="${p.id}" data-name="${p.player_name}">
-            +${CUR}${getDefaultRebuy()}
-          </button>
-          <button class="btn btn-ghost btn-sm add-buyin-btn"
-                  data-id="${p.id}" data-name="${p.player_name}">
-            Custom Re-buy
-          </button>
-        </div>` : ''}`;
-
+      <span class="tourney-name">${p.player_name}</span>
+      <div class="tourney-actions">
+        ${!isSettled ? `<button class="btn-knockout" data-id="${p.id}">Knock Out</button>` : ''}
+        ${!isSettled ? `<button class="btn-remove-player" data-id="${p.id}" data-name="${p.player_name}" title="Remove player"><svg class="icon"><use href="#i-x"/></svg></button>` : ''}
+      </div>`;
     list.appendChild(card);
   });
 
-  // Quick re-buy (amount from config / getDefaultRebuy)
-  document.querySelectorAll('.quick-rebuy-btn').forEach(btn =>
-    btn.addEventListener('click', () => quickRebuy(btn.dataset.id, btn.dataset.name))
-  );
+  // Knocked out / final standings
+  if (busted.length) {
+    const divider = document.createElement('div');
+    divider.className = 'tourney-divider';
+    divider.textContent = isSettled ? 'Final standings' : 'Knocked out';
+    list.appendChild(divider);
 
-  // Custom re-buy (opens modal)
-  document.querySelectorAll('.add-buyin-btn').forEach(btn =>
-    btn.addEventListener('click', () => openAddBuyinModal(btn.dataset.id, btn.dataset.name))
-  );
+    busted.forEach(p => {
+      const place = p.final_chips;
+      const medal = place === 1 ? 'gold' : place === 2 ? 'silver' : place === 3 ? 'bronze' : '';
+      const card = document.createElement('div');
+      card.className = `tourney-card busted${place === 1 ? ' winner' : ''}`;
+      card.innerHTML = `
+        <span class="tourney-place ${medal}">${ordinal(place)}</span>
+        <span class="tourney-name">${p.player_name}</span>
+        <span class="tourney-pts">+${placePoints(place, fieldSize)} pts</span>`;
+      list.appendChild(card);
+    });
+  }
 
-  // Edit buyin pills
-  document.querySelectorAll('.edit-buyin-btn').forEach(btn =>
-    btn.addEventListener('click', () =>
-      openEditBuyinModal(btn.dataset.buyinId, Number(btn.dataset.amount), btn.dataset.player)
-    )
+  document.querySelectorAll('.btn-knockout').forEach(btn =>
+    btn.addEventListener('click', () => bustPlayer(btn.dataset.id))
   );
-
-  // Remove player buttons
+  document.getElementById('btn-undo-knockout')?.addEventListener('click', undoLastKnockout);
   document.querySelectorAll('.btn-remove-player').forEach(btn =>
     btn.addEventListener('click', () => removePlayer(btn.dataset.id, btn.dataset.name))
   );
+}
+
+// Knock a player out — they finish in the current remaining position.
+// When only one player is left, crown them and finalize the tournament.
+async function bustPlayer(id) {
+  const active = currentPlayers.filter(p => p.final_chips == null);
+  if (active.length <= 1) return;
+  const place = active.length;
+  const { error } = await api(`/session-players/${id}`, 'PATCH', { final_chips: place });
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  await loadPlayers();
+
+  const stillActive = currentPlayers.filter(p => p.final_chips == null);
+  if (stillActive.length === 1) {
+    await api(`/session-players/${stillActive[0].id}`, 'PATCH', { final_chips: 1 });
+    await finalizeTournament();
+  }
+}
+
+// Revive the most recently knocked-out player (smallest place number).
+async function undoLastKnockout() {
+  const busted = currentPlayers.filter(p => p.final_chips != null);
+  if (!busted.length) return;
+  const last = [...busted].sort((a, b) => a.final_chips - b.final_chips)[0];
+  const { error } = await api(`/session-players/${last.id}`, 'PATCH', { final_chips: null });
+  if (error) { toast('Error: ' + error.message, 'error'); return; }
+  await loadPlayers();
+}
+
+// Crown the winner and lock the session.
+async function finalizeTournament() {
+  await api(`/sessions/${currentSession.id}`, 'PATCH', { status: 'settled' });
+  currentSession.status = 'settled';
+  setSettledAt(currentSession.id);
+  justSettled = true;
+  await loadPlayers();
+  openResultsView();
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -590,7 +601,6 @@ function saveLocalPlayer(name) {
 // Called by: btn-open-picker click — shows blind-level picker first
 async function openPlayerPicker() {
   if (currentSession.status === 'settled') return;
-  pickerBuyinDefault = null;
   renderBlindsPresets();
   document.getElementById('modal-blinds').classList.remove('hidden');
 }
@@ -600,12 +610,10 @@ async function continueToPlayerPicker() {
   if (!roster.length) await loadRoster();
   pickerSelected = new Set();
   renderRosterChips();
-  renderPickerBuyins();
+  renderPickerCount();
   document.getElementById('new-roster-input').value = '';
   const label = document.querySelector('#modal-picker .modal-label');
-  if (label) label.textContent = pickerBuyinDefault
-    ? `Tap to select · ${CUR}${pickerBuyinDefault.toLocaleString()} entry fee pre-filled`
-    : 'Tap to select · set each entry fee below';
+  if (label) label.textContent = 'Tap names to add them to the tournament';
   document.getElementById('modal-picker').classList.remove('hidden');
 }
 
@@ -641,8 +649,6 @@ function applyStructure(s) {
   clearInterval(timerInterval);
   const durSel = document.getElementById('timer-duration');
   if (durSel) durSel.value = String(s.levelSecs);
-  pickerBuyinDefault = DEFAULT_ENTRY_FEE;   // entry fee, same for everyone
-  setDefaultRebuy(DEFAULT_ENTRY_FEE);       // a re-entry costs the same as entry
 }
 
 document.getElementById('btn-open-picker').addEventListener('click', openPlayerPicker);
@@ -674,7 +680,7 @@ function renderRosterChips() {
         pickerSelected.add(p.name);
         chip.classList.add('selected');
       }
-      renderPickerBuyins();
+      renderPickerCount();
     });
 
     container.appendChild(chip);
@@ -682,53 +688,26 @@ function renderRosterChips() {
 }
 
 // Called by: chip click, continueToPlayerPicker
-function renderPickerBuyins() {
+function renderPickerCount() {
   const container = document.getElementById('picker-buyins');
-  container.innerHTML = '';
-
-  pickerSelected.forEach(name => {
-    const row = document.createElement('div');
-    row.className = 'picker-buyin-row';
-    const preVal = pickerBuyinDefault ? ` value="${pickerBuyinDefault}"` : '';
-    row.innerHTML = `
-      <span class="picker-buyin-name">${name}</span>
-      <div class="input-with-prefix">
-        <span class="input-prefix">${CUR}</span>
-        <input class="input input-prefixed" type="number" inputmode="decimal" placeholder="0"
-               min="1" data-player="${name}"${preVal} />
-      </div>`;
-    container.appendChild(row);
-  });
-
-  if (pickerSelected.size > 0 && !pickerBuyinDefault) {
-    const first = container.querySelector('input');
-    if (first) setTimeout(() => first.focus(), 50);
-  }
+  const n = pickerSelected.size;
+  container.innerHTML = n
+    ? `<p class="picker-count">${n} player${n !== 1 ? 's' : ''} selected</p>`
+    : '';
 }
 
-// Confirm — add all selected players with their buy-ins
+// Confirm — add all selected players (names only; no buy-ins in tournament mode)
 document.getElementById('picker-confirm').addEventListener('click', async () => {
   if (!pickerSelected.size) {
     document.getElementById('modal-picker').classList.add('hidden'); return;
   }
 
-  const inputs = document.querySelectorAll('#picker-buyins input');
-  const entries = [];
-
-  for (const inp of inputs) {
-    const amount = parseFloat(inp.value);
-    if (!amount || amount <= 0) {
-      toast(`Enter a buy-in amount for ${inp.dataset.player}.`, 'error'); return;
-    }
-    entries.push({ name: inp.dataset.player, amount });
-  }
-
+  const names = [...pickerSelected];
   document.getElementById('modal-picker').classList.add('hidden');
 
-  for (const entry of entries) {
-    const { data: player, error: pe } = await api('/session-players', 'POST', { session_id: currentSession.id, player_name: entry.name });
-    if (pe) { toast('Error adding ' + entry.name + ': ' + pe.message, 'error'); continue; }
-    await api('/buyins', 'POST', { session_player_id: player.id, amount: entry.amount });
+  for (const name of names) {
+    const { error: pe } = await api('/session-players', 'POST', { session_id: currentSession.id, player_name: name });
+    if (pe) { toast('Error adding ' + name + ': ' + pe.message, 'error'); }
   }
 
   await loadPlayers();
@@ -761,7 +740,7 @@ document.getElementById('btn-add-roster').addEventListener('click', () => {
   input.value = '';
   pickerSelected.add(name);
   renderRosterChips();
-  renderPickerBuyins();
+  renderPickerCount();
 });
 
 document.getElementById('new-roster-input').addEventListener('keydown', e => {
@@ -904,32 +883,6 @@ document.getElementById('session-notes-input').addEventListener('blur', async ()
   await api(`/sessions/${currentSession.id}`, 'PATCH', { notes });
 });
 
-/* ── Configurable Quick Rebuy ───────────────────────────────────── */
-document.getElementById('btn-set-rebuy').addEventListener('click', () => {
-  document.getElementById('input-rebuy-amount').value = getDefaultRebuy();
-  document.getElementById('modal-set-rebuy').classList.remove('hidden');
-  setTimeout(() => document.getElementById('input-rebuy-amount').focus(), 50);
-});
-
-document.getElementById('rebuy-amount-cancel').addEventListener('click', () => {
-  document.getElementById('modal-set-rebuy').classList.add('hidden');
-});
-
-document.getElementById('rebuy-amount-confirm').addEventListener('click', () => {
-  const val = parseInt(document.getElementById('input-rebuy-amount').value, 10);
-  if (val > 0) {
-    setDefaultRebuy(val);
-    document.getElementById('modal-set-rebuy').classList.add('hidden');
-    renderPlayers();
-  } else {
-    toast('Enter a valid amount.', 'error');
-  }
-});
-
-document.getElementById('input-rebuy-amount').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('rebuy-amount-confirm').click();
-});
-
 /* ── Settle / Back ──────────────────────────────────────────────── */
 
 document.getElementById('btn-back-home').addEventListener('click', () => {
@@ -1058,30 +1011,46 @@ function openResultsView() {
   show('view-results', 'forward');
   document.getElementById('results-session-name').textContent = currentSession.name;
 
-  // Sort once, store for re-renders after force balance
-  currentSorted       = [...currentPlayers].sort((a, b) => getNet(b) - getNet(a));
-  adjustedNets        = null;
-  originalDiscrepancy = null;
+  const fieldSize = currentPlayers.length;
+  // Sort by finishing place (1 = winner); anyone without a place sorts last.
+  currentSorted = [...currentPlayers].sort((a, b) => (a.final_chips ?? 999) - (b.final_chips ?? 999));
 
-  let totalPot = 0;
-  currentPlayers.forEach(p => { totalPot += totalBuyin(p.buyins); });
-  document.getElementById('results-pot').textContent = `${CUR}${totalPot}`;
+  renderStandings(fieldSize);
 
-  renderResultCards();
-  renderSettlements();
-  renderBalanceCheck();
-
-  // Celebrate the winner only on a freshly settled session
   if (justSettled) {
     justSettled = false;
-    const winner = currentSorted.find(p => getNet(p) > 0);
+    const winner = currentSorted.find(p => p.final_chips === 1);
     if (winner) {
       setTimeout(() => {
         launchConfetti();
-        showWinnerAnnouncement(winner.player_name, getNet(winner));
+        showWinnerAnnouncement(winner.player_name, placePoints(1, fieldSize));
       }, 400);
     }
   }
+}
+
+// Final standings: place + points per player (tournament mode — no money).
+function renderStandings(fieldSize) {
+  const list = document.getElementById('results-list');
+  list.innerHTML = '';
+
+  currentSorted.forEach(p => {
+    const place = p.final_chips;
+    const pts   = placePoints(place, fieldSize);
+    const medal = place === 1 ? 'gold' : place === 2 ? 'silver' : place === 3 ? 'bronze' : '';
+    const rankClass = place === 1 ? 'result-rank-1' : place === 2 ? 'result-rank-2' : place === 3 ? 'result-rank-3' : '';
+
+    const card = document.createElement('div');
+    card.className = `result-card ${place === 1 ? 'winner' : ''} ${rankClass}`.trim();
+    card.innerHTML = `
+      <span class="result-rank ${medal}">${place ?? '—'}</span>
+      <div class="result-info">
+        <span class="result-name">${p.player_name}</span>
+        <span class="result-detail">${place ? ordinal(place) + ' place' : 'Did not finish'}</span>
+      </div>
+      <span class="net-gain positive">+${pts} pts</span>`;
+    list.appendChild(card);
+  });
 }
 
 // Returns net for a player, using adjusted value if force balance was applied.
@@ -1252,7 +1221,7 @@ document.getElementById('reopen-confirm-ok').addEventListener('click', async () 
   await api(`/sessions/${currentSession.id}`, 'PATCH', { status: 'active' });
   currentSession.status = 'active';
   clearSettledAt(currentSession.id);
-  document.getElementById('btn-settle').textContent = 'Settle Up';
+  document.getElementById('btn-settle').classList.add('hidden');
   await loadPlayers();
   show('view-session', 'back');
   clearSessionTimer();
@@ -1261,16 +1230,6 @@ document.getElementById('reopen-confirm-ok').addEventListener('click', async () 
   updateSessionTimer(currentSession.created_at);
   sessionTimerInterval = setInterval(() => updateSessionTimer(currentSession.created_at), 60000);
   toast('Session re-opened.', 'success');
-});
-
-document.getElementById('btn-copy-settlements').addEventListener('click', () => {
-  const settlements = calculateSettlements();
-  if (!settlements.length) { toast('Everyone is square — nothing to copy.', 'info'); return; }
-  const text = settlements.map(t => `${t.from} → ${t.to}  ${CUR}${t.amount}`).join('\n');
-  navigator.clipboard.writeText(text).then(
-    ()  => toast('Settlements copied!', 'success'),
-    ()  => toast('Could not access clipboard.', 'error')
-  );
 });
 
 // Undoes force balance and restores raw chip values.
@@ -1313,36 +1272,31 @@ async function loadDashboard() {
     return;
   }
 
-  // ── Champion (overall leaderboard leader) ────────────────────
-  const leader   = Object.values(stats).sort((a, b) => b.totalNet - a.totalNet)[0];
-  const winRate  = Math.round((leader.wins / leader.sessions) * 100);
-  const netStr   = `${leader.totalNet >= 0 ? '+' : ''}${CUR}${leader.totalNet}`;
-  const streak   = computeStreak(leader.results);
-  const streakStr = streak
-    ? ` · ${streak.type === 'win' ? '🔥' : '🥀'} ${streak.count}${streak.type === 'win' ? 'W' : 'L'}`
-    : '';
+  const players = Object.values(stats);
 
+  // ── Champion (most season points) ────────────────────────────
+  const leader = rankByPoints(stats)[0];
   leaderEl.innerHTML = `
     <div class="dash-crown"><svg class="icon"><use href="#i-crown"/></svg></div>
     <div class="dash-leader-name">${leader.name}</div>
-    <div class="dash-leader-net">${netStr}</div>
-    <div class="dash-leader-meta">${leader.sessions} session${leader.sessions !== 1 ? 's' : ''} · ${winRate}% wins${streakStr}</div>`;
+    <div class="dash-leader-net">${leader.totalPoints} pts</div>
+    <div class="dash-leader-meta">${leader.sessions} played · ${leader.wins} win${leader.wins !== 1 ? 's' : ''} · avg ${leader.avgPlace.toFixed(1)}</div>`;
 
-  // ── Best single-session win ───────────────────────────────────
-  const bigWin  = [...allResults].filter(r => r.net > 0).sort((a, b) => b.net - a.net)[0];
-  const bigLoss = [...allResults].filter(r => r.net < 0).sort((a, b) => a.net - b.net)[0];
-
-  winEl.innerHTML = bigWin
-    ? `<div class="dash-stat-amount positive">+${CUR}${bigWin.net}</div>
-       <div class="dash-stat-name">${bigWin.name}</div>
-       <div class="dash-stat-session">${bigWin.sessionName}</div>`
+  // ── Most wins ─────────────────────────────────────────────────
+  const mostWins = [...players].filter(p => p.wins > 0).sort((a, b) => b.wins - a.wins)[0];
+  winEl.innerHTML = mostWins
+    ? `<div class="dash-stat-amount positive">${mostWins.wins}</div>
+       <div class="dash-stat-name">${mostWins.name}</div>
+       <div class="dash-stat-session">tournament win${mostWins.wins !== 1 ? 's' : ''}</div>`
     : '<p class="dash-stat-empty">No wins yet</p>';
 
-  lossEl.innerHTML = bigLoss
-    ? `<div class="dash-stat-amount negative">-${CUR}${Math.abs(bigLoss.net)}</div>
-       <div class="dash-stat-name">${bigLoss.name}</div>
-       <div class="dash-stat-session">${bigLoss.sessionName}</div>`
-    : '<p class="dash-stat-empty">No losses yet</p>';
+  // ── Most played ───────────────────────────────────────────────
+  const mostPlayed = [...players].sort((a, b) => b.sessions - a.sessions)[0];
+  lossEl.innerHTML = mostPlayed
+    ? `<div class="dash-stat-amount">${mostPlayed.sessions}</div>
+       <div class="dash-stat-name">${mostPlayed.name}</div>
+       <div class="dash-stat-session">tournament${mostPlayed.sessions !== 1 ? 's' : ''} played</div>`
+    : '<p class="dash-stat-empty">No data yet</p>';
 }
 
 document.getElementById('btn-new-session-dash').addEventListener('click', openNewSessionModal);
@@ -1388,18 +1342,6 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
   });
 });
 
-// Records sub-tabs (Records / Averages)
-document.querySelectorAll('.sub-tab[data-sub]').forEach(tab => {
-  tab.addEventListener('click', () => {
-    document.querySelectorAll('.sub-tab[data-sub]').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    const target = tab.dataset.sub;
-    document.getElementById('rec-main').classList.toggle('hidden', target !== 'rec-main');
-    document.getElementById('rec-avg').classList.toggle('hidden',  target !== 'rec-avg');
-  });
-});
-
-
 /* ═══════════════════════════════════════════════════════════════
    SHARED STATS FETCH
    Used by both Leaderboard and Records views.
@@ -1409,49 +1351,40 @@ async function fetchStats() {
   const { data, error } = await api('/stats');
   if (error) return { error };
 
+  // First pass — field size per tournament (players with a recorded place),
+  // so points can scale with how many people were in the game.
+  const fieldByDate = {};
+  (data || []).forEach(p => { fieldByDate[p.session_date] = (fieldByDate[p.session_date] || 0) + 1; });
+
   const stats      = {};
   const allResults = [];
 
   (data || []).forEach(p => {
     const key         = p.player_name.toLowerCase().trim();
-    const buyin       = (p.buyins || []).reduce((s, b) => s + Number(b.amount), 0);
-    const net         = Math.round(((p.final_chips ?? 0) - buyin) * 100) / 100;
+    const place       = p.final_chips;                       // finishing place (1 = winner)
+    const fieldSize   = fieldByDate[p.session_date] || 1;
+    const pts         = placePoints(place, fieldSize);
     const sessionName = p.session_name ?? 'Unknown session';
-    const sessionDate = p.session_date;
 
     if (!stats[key]) {
-      stats[key] = { name: p.player_name, sessions: 0, wins: 0, losses: 0, totalNet: 0, totalWon: 0, totalLost: 0, results: [] };
+      stats[key] = { name: p.player_name, sessions: 0, wins: 0, podiums: 0,
+                     totalPoints: 0, placeSum: 0, bestPlace: Infinity };
     }
-    stats[key].sessions++;
-    stats[key].results.push({ net, date: sessionDate });
-    stats[key].totalNet = Math.round((stats[key].totalNet + net) * 100) / 100;
-    if (net > 0) {
-      stats[key].wins++;
-      stats[key].totalWon = Math.round((stats[key].totalWon + net) * 100) / 100;
-    } else if (net < 0) {
-      stats[key].losses++;
-      stats[key].totalLost = Math.round((stats[key].totalLost + Math.abs(net)) * 100) / 100;
-    }
-    allResults.push({ name: p.player_name, sessionName, net });
+    const s = stats[key];
+    s.sessions++;
+    s.totalPoints += pts;
+    s.placeSum    += place;
+    if (place === 1) s.wins++;
+    if (place <= 3)  s.podiums++;
+    if (place < s.bestPlace) s.bestPlace = place;
+
+    allResults.push({ name: p.player_name, sessionName, place, points: pts, fieldSize });
   });
 
-  return { stats, allResults };
-}
+  // Derived: average finishing place
+  Object.values(stats).forEach(s => { s.avgPlace = s.placeSum / s.sessions; });
 
-// Returns { count, type: 'win'|'loss' } if current streak is ≥ 2, else null.
-// Called by: loadLeaderboard, buildPodium
-function computeStreak(results) {
-  if (!results || results.length < 2) return null;
-  const sorted = [...results].sort((a, b) => new Date(b.date) - new Date(a.date));
-  const type   = sorted[0].net > 0 ? 'win' : sorted[0].net < 0 ? 'loss' : null;
-  if (!type) return null;
-  let count = 0;
-  for (const r of sorted) {
-    if (type === 'win'  && r.net > 0) count++;
-    else if (type === 'loss' && r.net < 0) count++;
-    else break;
-  }
-  return count >= 2 ? { count, type } : null;
+  return { stats, allResults };
 }
 
 /* ── Leaderboard view — rankings only ──────────────────────────── */
@@ -1466,7 +1399,7 @@ async function loadLeaderboard() {
     list.innerHTML = '<p class="empty-state">No settled sessions yet.</p>'; return;
   }
 
-  const sorted   = Object.values(stats).sort((a, b) => b.totalNet - a.totalNet);
+  const sorted   = rankByPoints(stats);
   list.innerHTML = '';
 
   // ── Podium (top 1–3) ──────────────────────────────────────────
@@ -1476,27 +1409,26 @@ async function loadLeaderboard() {
 
   // ── Remaining players (#4 onwards) ────────────────────────────
   sorted.slice(3).forEach((p, i) => {
-    const rank      = i + 4;
-    const netClass  = p.totalNet > 0 ? 'positive' : p.totalNet < 0 ? 'negative' : 'zero';
-    const netStr    = `${p.totalNet >= 0 ? '+' : ''}${CUR}${p.totalNet}`;
-    const winRate   = Math.round((p.wins / p.sessions) * 100);
-    const streak    = computeStreak(p.results);
-    const streakStr = streak ? ` · ${streak.type === 'win' ? '🔥' : '🥀'} ${streak.count}${streak.type === 'win' ? 'W' : 'L'}` : '';
-
+    const rank = i + 4;
     const card = document.createElement('div');
     card.className = 'lb-card';
     card.innerHTML = `
       <span class="lb-rank">#${rank}</span>
       <div class="lb-info">
         <span class="lb-name">${p.name}</span>
-        <span class="lb-meta">${p.sessions} session${p.sessions !== 1 ? 's' : ''} · ${winRate}% wins${streakStr}</span>
+        <span class="lb-meta">${p.sessions} played · ${p.wins} win${p.wins !== 1 ? 's' : ''} · avg ${p.avgPlace.toFixed(1)}</span>
       </div>
-      <span class="lb-net ${netClass}">${netStr}</span>`;
+      <span class="lb-net positive">${p.totalPoints} pts</span>`;
     card.addEventListener('click', () => openPlayerHistory(p.name));
     list.appendChild(card);
   });
 }
 
+// Season ranking: points, then wins, then best average finish.
+function rankByPoints(stats) {
+  return Object.values(stats).sort((a, b) =>
+    b.totalPoints - a.totalPoints || b.wins - a.wins || a.avgPlace - b.avgPlace);
+}
 
 // Builds the podium element for top 1–3 players.
 // Arrangement: 2nd · 1st · 3rd (Olympic order).
@@ -1509,13 +1441,7 @@ function buildPodium(sorted) {
   const ranks  = sorted[1] ? [2, 1, 3] : [1]; // handle < 3 players
 
   slots.forEach((p, idx) => {
-    const rank     = ranks[idx];
-    const netClass = p.totalNet > 0 ? 'positive' : p.totalNet < 0 ? 'negative' : 'zero';
-    const netStr   = `${p.totalNet >= 0 ? '+' : ''}${CUR}${p.totalNet}`;
-    const winRate   = Math.round((p.wins / p.sessions) * 100);
-    const streak    = computeStreak(p.results);
-    const streakStr = streak ? ` · ${streak.type === 'win' ? '🔥' : '🥀'} ${streak.count}${streak.type === 'win' ? 'W' : 'L'}` : '';
-
+    const rank = ranks[idx];
     const step = document.createElement('div');
     step.className = `podium-step podium-rank-${rank}`;
 
@@ -1523,8 +1449,8 @@ function buildPodium(sorted) {
       <div class="podium-info">
         <span class="podium-medal">${rank}</span>
         <span class="podium-name">${p.name}</span>
-        <span class="podium-net ${netClass}">${netStr}</span>
-        <span class="podium-meta">${p.sessions} session${p.sessions !== 1 ? 's' : ''} · ${winRate}% wins${streakStr}</span>
+        <span class="podium-net positive">${p.totalPoints} pts</span>
+        <span class="podium-meta">${p.sessions} played · ${p.wins} win${p.wins !== 1 ? 's' : ''}</span>
       </div>
       <div class="podium-block">
         <span class="podium-rank-num">${rank}</span>
@@ -1540,100 +1466,52 @@ function buildPodium(sorted) {
 /* ── Records view — records + averages ─────────────────────────── */
 
 async function loadRecords() {
-  const empty = '<p class="empty-state" style="padding:16px 0">No data yet.</p>';
-  ['lb-total-won','lb-biggest-win','lb-biggest-loss',
-   'lb-avg-net','lb-avg-win','lb-avg-loss',
-   'lb-attendance','lb-consistent'].forEach(id => {
+  const ids = ['rec-most-wins','rec-most-points','rec-final-tables','rec-best-avg','rec-most-played'];
+  ids.forEach(id => {
     document.getElementById(id).innerHTML = '<p class="empty-state" style="padding:16px 0">Loading…</p>';
   });
 
-  const { stats, allResults, error } = await fetchStats();
-  if (error || !stats) {
-    ['lb-total-won','lb-biggest-win','lb-biggest-loss',
-     'lb-avg-net','lb-avg-win','lb-avg-loss',
-     'lb-attendance','lb-consistent'].forEach(id => {
-      document.getElementById(id).innerHTML = empty;
+  const { stats, error } = await fetchStats();
+  if (error || !stats || !Object.keys(stats).length) {
+    ids.forEach(id => {
+      document.getElementById(id).innerHTML = '<p class="empty-state" style="padding:16px 0">No data yet.</p>';
     });
     return;
   }
 
-  // Most Money Won (top 3)
-  renderRecords('lb-total-won',
-    Object.values(stats).filter(p => p.totalWon > 0)
-      .sort((a, b) => b.totalWon - a.totalWon).slice(0, 3)
-      .map(p => ({ name: p.name, sessionName: `across ${p.wins} winning session${p.wins !== 1 ? 's' : ''}`, net: p.totalWon })),
-    'total');
+  const players = Object.values(stats);
+  const sub = n => `across ${n} tournament${n !== 1 ? 's' : ''}`;
 
-  // Biggest Win — record holder only
-  renderRecords('lb-biggest-win',
-    [...allResults].filter(r => r.net > 0).sort((a, b) => b.net - a.net).slice(0, 1),
-    'win');
+  // Most Wins (1st-place finishes)
+  renderRecords('rec-most-wins',
+    players.filter(p => p.wins > 0).sort((a, b) => b.wins - a.wins).slice(0, 3)
+      .map(p => ({ name: p.name, sub: sub(p.sessions), value: `${p.wins} win${p.wins !== 1 ? 's' : ''}` })));
 
-  // Biggest Loss — record holder only
-  renderRecords('lb-biggest-loss',
-    [...allResults].filter(r => r.net < 0).sort((a, b) => a.net - b.net).slice(0, 1),
-    'loss');
+  // Most Points (season total)
+  renderRecords('rec-most-points',
+    players.sort((a, b) => b.totalPoints - a.totalPoints).slice(0, 3)
+      .map(p => ({ name: p.name, sub: sub(p.sessions), value: `${p.totalPoints} pts` })));
 
-  // Avg Net per session (top 3)
-  renderRecords('lb-avg-net',
-    Object.values(stats).filter(p => p.sessions > 0)
-      .map(p => ({ name: p.name, sessionName: `across ${p.sessions} session${p.sessions !== 1 ? 's' : ''}`, net: Math.round((p.totalNet / p.sessions) * 100) / 100 }))
-      .sort((a, b) => b.net - a.net).slice(0, 3),
-    'total');
+  // Most Final Tables (top-3 finishes)
+  renderRecords('rec-final-tables',
+    players.filter(p => p.podiums > 0).sort((a, b) => b.podiums - a.podiums).slice(0, 3)
+      .map(p => ({ name: p.name, sub: sub(p.sessions), value: `${p.podiums}` })));
 
-  // Avg Win per winning session (top 3)
-  renderRecords('lb-avg-win',
-    Object.values(stats).filter(p => p.wins > 0)
-      .map(p => ({ name: p.name, sessionName: `across ${p.wins} winning session${p.wins !== 1 ? 's' : ''}`, net: Math.round((p.totalWon / p.wins) * 100) / 100 }))
-      .sort((a, b) => b.net - a.net).slice(0, 3),
-    'win');
+  // Best Average Finish (lowest avg place, min 3 tournaments)
+  renderRecords('rec-best-avg',
+    players.filter(p => p.sessions >= 3).sort((a, b) => a.avgPlace - b.avgPlace).slice(0, 3)
+      .map(p => ({ name: p.name, sub: sub(p.sessions), value: `${p.avgPlace.toFixed(1)} avg` })));
 
-  // Avg Loss per losing session (top 3)
-  renderRecords('lb-avg-loss',
-    Object.values(stats).filter(p => p.losses > 0)
-      .map(p => ({ name: p.name, sessionName: `across ${p.losses} losing session${p.losses !== 1 ? 's' : ''}`, net: -Math.round((p.totalLost / p.losses) * 100) / 100 }))
-      .sort((a, b) => a.net - b.net).slice(0, 3),
-    'loss');
-
-  // Most sessions attended (top 3)
-  renderRecords('lb-attendance',
-    Object.values(stats)
-      .sort((a, b) => b.sessions - a.sessions)
-      .slice(0, 3)
-      .map(p => ({
-        name:       p.name,
-        sessionName: `${p.sessions} session${p.sessions !== 1 ? 's' : ''} played`,
-        net:         p.sessions,
-        displayVal:  `${p.sessions} ✓`,
-      })),
-    'attendance');
-
-  // Most consistent — lowest std dev, min 3 sessions
-  const consistentData = Object.values(stats)
-    .filter(p => p.sessions >= 3)
-    .map(p => {
-      const nets     = p.results.map(r => r.net);
-      const mean     = nets.reduce((s, v) => s + v, 0) / nets.length;
-      const variance = nets.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / nets.length;
-      const sd       = Math.round(Math.sqrt(variance) * 100) / 100;
-      return { name: p.name, sessions: p.sessions, sd };
-    })
-    .sort((a, b) => a.sd - b.sd)
-    .slice(0, 3)
-    .map(p => ({
-      name:        p.name,
-      sessionName: `${p.sessions} sessions · ±${CUR}${p.sd} avg swing`,
-      net:         p.sd,
-      displayVal:  `±${CUR}${p.sd}`,
-    }));
-
-  renderRecords('lb-consistent', consistentData, 'consistent');
+  // Most Played (tournaments entered)
+  renderRecords('rec-most-played',
+    players.sort((a, b) => b.sessions - a.sessions).slice(0, 3)
+      .map(p => ({ name: p.name, sub: `${p.wins} win${p.wins !== 1 ? 's' : ''} · ${p.podiums} final table${p.podiums !== 1 ? 's' : ''}`, value: `${p.sessions}` })));
 }
 
-// Called by: loadLeaderboard — renders win or loss record cards
-function renderRecords(containerId, records, type) {
-  const el          = document.getElementById(containerId);
-  el.innerHTML      = '';
+// Renders a ranked top-3 record list. Each record: { name, sub, value }.
+function renderRecords(containerId, records) {
+  const el     = document.getElementById(containerId);
+  el.innerHTML = '';
 
   if (!records.length) {
     el.innerHTML = '<p class="empty-state" style="padding:16px 0">No data yet.</p>';
@@ -1641,18 +1519,16 @@ function renderRecords(containerId, records, type) {
   }
 
   records.forEach((r, i) => {
-    const sign      = r.net > 0 ? '+' : '';
-    const amount    = r.displayVal ?? `${sign}${CUR}${Math.abs(r.net)}`;
     const rankClass = i === 0 ? 'result-rank-1' : i === 1 ? 'result-rank-2' : i === 2 ? 'result-rank-3' : '';
     const card   = document.createElement('div');
-    card.className = `lb-record-card ${type}-card ${rankClass}`.trim();
+    card.className = `lb-record-card ${rankClass}`.trim();
     card.innerHTML = `
       <span class="lb-record-rank ${['gold', 'silver', 'bronze'][i] ?? ''}">#${i + 1}</span>
       <div class="lb-record-info">
         <span class="lb-record-name">${r.name}</span>
-        <span class="lb-record-session">${r.sessionName}</span>
+        <span class="lb-record-session">${r.sub}</span>
       </div>
-      <span class="lb-record-amount ${type}">${amount}</span>`;
+      <span class="lb-record-amount win">${r.value}</span>`;
     el.appendChild(card);
   });
 }
@@ -1665,18 +1541,18 @@ function renderRecords(containerId, records, type) {
 /* ── Share Results ───────────────────────────────────────────────── */
 
 document.getElementById('btn-share-results').addEventListener('click', () => {
-  const sorted  = [...currentSorted].sort((a, b) => getNet(b) - getNet(a));
-  const medals  = ['🥇', '🥈', '🥉'];
-  const sep     = '─'.repeat(26);
-  const pot     = currentPlayers.reduce((s, p) => s + totalBuyin(p.buyins), 0);
+  const fieldSize = currentPlayers.length;
+  const sorted    = [...currentPlayers].sort((a, b) => (a.final_chips ?? 999) - (b.final_chips ?? 999));
+  const medals    = ['🥇', '🥈', '🥉'];
+  const sep       = '─'.repeat(26);
 
   let text = `🃏 ${currentSession.name} · ${formatDate(currentSession.created_at)}\n${sep}\n`;
   sorted.forEach((p, i) => {
-    const net    = getNet(p);
-    const netStr = `${net >= 0 ? '+' : ''}${CUR}${net}`;
-    text += `${medals[i] ?? ' '} ${p.player_name}: ${netStr}\n`;
+    const place = p.final_chips;
+    const pts   = placePoints(place, fieldSize);
+    text += `${medals[i] ?? ` ${place ? ordinal(place) : '—'}`} ${p.player_name} · +${pts} pts\n`;
   });
-  text += `${sep}\n💰 Pot: ${CUR}${pot}`;
+  text += `${sep}\n${fieldSize} players`;
 
   if (navigator.share) {
     navigator.share({ title: `${currentSession.name} Results`, text }).catch(() => {});
@@ -1718,14 +1594,13 @@ async function openPlayerHistory(playerName) {
   // Sort by session date, newest first
   data.sort((a, b) => new Date(b.session_date) - new Date(a.session_date));
 
-  let wins = 0, totalNet = 0;
+  let wins = 0, best = Infinity;
   listEl.innerHTML = '';
 
   data.forEach(row => {
-    const buyin = (row.buyins || []).reduce((s, b) => s + Number(b.amount), 0);
-    const net   = Math.round(((row.final_chips ?? 0) - buyin) * 100) / 100;
-    if (net > 0) wins++;
-    totalNet = Math.round((totalNet + net) * 100) / 100;
+    const place = row.final_chips;
+    if (place === 1) wins++;
+    if (place != null && place < best) best = place;
 
     const el = document.createElement('div');
     el.className = 'history-row';
@@ -1735,18 +1610,14 @@ async function openPlayerHistory(playerName) {
         <span class="history-session-date">${formatDate(row.session_date)}</span>
       </div>
       <div class="history-row-right">
-        <span class="history-buyin">In ${CUR}${buyin}</span>
-        <span class="history-net ${net > 0 ? 'positive' : net < 0 ? 'negative' : 'zero'}">
-          ${net >= 0 ? '+' : ''}${CUR}${net}
-        </span>
+        <span class="history-net ${place === 1 ? 'positive' : ''}">${place != null ? ordinal(place) : '—'}</span>
       </div>`;
     listEl.appendChild(el);
   });
 
-  const winRate = Math.round((wins / data.length) * 100);
-  const netStr  = `${totalNet >= 0 ? '+' : ''}${CUR}${totalNet}`;
+  const bestStr = best === Infinity ? '—' : ordinal(best);
   document.getElementById('player-history-summary').textContent =
-    `${data.length} session${data.length !== 1 ? 's' : ''} · ${winRate}% wins · ${netStr} total`;
+    `${data.length} played · ${wins} win${wins !== 1 ? 's' : ''} · best ${bestStr}`;
 }
 
 document.getElementById('player-history-close').addEventListener('click', () => {
@@ -1901,15 +1772,15 @@ function launchConfetti() {
   requestAnimationFrame(draw);
 }
 
-function showWinnerAnnouncement(name, amount) {
+function showWinnerAnnouncement(name, points) {
   const el = document.createElement('div');
   el.className = 'winner-overlay';
   el.innerHTML = `
     <div class="winner-card-announce">
       <div class="winner-trophy"><svg class="icon"><use href="#i-trophy"/></svg></div>
       <div class="winner-announce-name">${name}</div>
-      <div class="winner-announce-amount">+${CUR}${amount}</div>
-      <div class="winner-announce-label">Tonight's Winner</div>
+      <div class="winner-announce-amount">+${points} pts</div>
+      <div class="winner-announce-label">Champion</div>
       <button class="winner-dismiss">Tap to continue</button>
     </div>`;
   document.body.appendChild(el);
