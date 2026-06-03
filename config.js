@@ -1,0 +1,10 @@
+// ─── CONFIG — fill in after deploying your Worker ───────────────
+// Run:  wrangler d1 create poker-live-tracker
+//       wrangler deploy
+// Then replace the URL below with your Worker's URL.
+const API_BASE = 'https://YOUR_WORKER_NAME.workers.dev/api';
+
+const CURRENCY = '$';
+
+// Pre-seed the player roster (optional — players can also be added in-app)
+const DEFAULT_ROSTER = [];
