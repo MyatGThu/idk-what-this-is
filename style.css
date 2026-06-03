@@ -590,6 +590,9 @@ header > .icon-btn { flex-shrink: 0; }
   color: var(--accent);
 }
 
+.roster-chip .chip-x { font-weight: 700; opacity: 0.7; }
+.roster-chip.selected:hover { color: var(--loss); border-color: var(--loss); }
+
 .roster-chip.in-session {
   background: var(--surface);
   border-color: var(--border);

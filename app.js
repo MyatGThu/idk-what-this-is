@@ -131,9 +131,8 @@ let adjustedNets        = null;    // Map<player_id, adjusted_net> after force b
 let originalDiscrepancy = null;    // raw discrepancy amount before force balance was applied
 let justSettled         = false;   // true only when coming directly from the settle confirm
 
-// Roster state
-let roster          = [];          // [{id, name}] from players table
-let pickerSelected  = new Set();   // names selected in the picker
+// Picker state — names added for the current tournament only (not persisted)
+let pickerSelected  = new Set();
 
 /* ═══════════════════════════════════════════════════════════════
    TOAST NOTIFICATIONS
@@ -562,41 +561,11 @@ async function finalizeTournament() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PLAYER ROSTER & PICKER
-   Default roster is hardcoded — no extra SQL table needed.
-   Extra players added via the picker are saved to localStorage.
+   PLAYER PICKER
+   No saved roster — the player list is empty every tournament and the
+   names you add live only inside that session. Players are typed fresh
+   each night (the season leaderboard still aggregates them by name).
    ═══════════════════════════════════════════════════════════════ */
-
-// Starter roster comes from DEFAULT_ROSTER in config.js (empty by default).
-// No hardcoded fallback — players are added fresh via the picker each night
-// and persisted to localStorage.
-const DEFAULT_PLAYERS = (typeof DEFAULT_ROSTER !== 'undefined' && Array.isArray(DEFAULT_ROSTER))
-  ? DEFAULT_ROSTER
-  : [];
-
-// Called by: openPlayerPicker, boot
-function loadRoster() {
-  const extras = getLocalPlayers();
-  const allNames = [
-    ...DEFAULT_PLAYERS,
-    ...extras.filter(e => !DEFAULT_PLAYERS.some(d => d.toLowerCase() === e.toLowerCase()))
-  ];
-  roster = allNames.map((name, i) => ({ id: `player-${i}`, name }));
-}
-
-// localStorage helpers for extra players added at runtime
-function getLocalPlayers() {
-  try { return JSON.parse(localStorage.getItem('poker_extra_players') || '[]'); }
-  catch { return []; }
-}
-
-function saveLocalPlayer(name) {
-  const existing = getLocalPlayers();
-  if (!existing.some(n => n.toLowerCase() === name.toLowerCase())) {
-    existing.push(name);
-    localStorage.setItem('poker_extra_players', JSON.stringify(existing));
-  }
-}
 
 // Called by: btn-open-picker click — shows blind-level picker first
 async function openPlayerPicker() {
@@ -607,14 +576,14 @@ async function openPlayerPicker() {
 
 // Called by: renderBlindsPresets preset click, #blinds-skip
 async function continueToPlayerPicker() {
-  if (!roster.length) await loadRoster();
-  pickerSelected = new Set();
+  pickerSelected = new Set();          // empty every tournament — no saved roster
   renderRosterChips();
   renderPickerCount();
   document.getElementById('new-roster-input').value = '';
   const label = document.querySelector('#modal-picker .modal-label');
-  if (label) label.textContent = 'Tap names to add them to the tournament';
+  if (label) label.textContent = "Add tonight's players — saved only to this tournament";
   document.getElementById('modal-picker').classList.remove('hidden');
+  setTimeout(() => document.getElementById('new-roster-input').focus(), 60);
 }
 
 // Called by: openPlayerPicker
@@ -653,33 +622,30 @@ function applyStructure(s) {
 
 document.getElementById('btn-open-picker').addEventListener('click', openPlayerPicker);
 
-// Called by: openPlayerPicker, chip click, addToRoster
+// Called by: continueToPlayerPicker, btn-add-roster — renders the names added
+// for this tournament as removable chips (tap to remove).
 function renderRosterChips() {
-  const inSession = new Set(currentPlayers.map(p => p.player_name.toLowerCase()));
   const container = document.getElementById('roster-chips');
   container.innerHTML = '';
 
-  if (!roster.length) {
+  if (!pickerSelected.size) {
     container.innerHTML = '<p class="empty-state roster-empty">No players yet — add them below.</p>';
     return;
   }
 
-  roster.forEach(p => {
-    const alreadyIn = inSession.has(p.name.toLowerCase());
+  [...pickerSelected].forEach(name => {
     const chip = document.createElement('button');
-    chip.className = `roster-chip${pickerSelected.has(p.name) ? ' selected' : ''}${alreadyIn ? ' in-session' : ''}`;
-    chip.textContent = p.name;
-    chip.disabled = alreadyIn;
-    chip.title = alreadyIn ? 'Already in this session' : '';
+    chip.className = 'roster-chip selected';
+    chip.title = 'Tap to remove';
+    chip.textContent = name;
+    const x = document.createElement('span');
+    x.className = 'chip-x';
+    x.textContent = ' ×';
+    chip.appendChild(x);
 
     chip.addEventListener('click', () => {
-      if (pickerSelected.has(p.name)) {
-        pickerSelected.delete(p.name);
-        chip.classList.remove('selected');
-      } else {
-        pickerSelected.add(p.name);
-        chip.classList.add('selected');
-      }
+      pickerSelected.delete(name);
+      renderRosterChips();
       renderPickerCount();
     });
 
@@ -692,7 +658,7 @@ function renderPickerCount() {
   const container = document.getElementById('picker-buyins');
   const n = pickerSelected.size;
   container.innerHTML = n
-    ? `<p class="picker-count">${n} player${n !== 1 ? 's' : ''} selected</p>`
+    ? `<p class="picker-count">${n} player${n !== 1 ? 's' : ''} added</p>`
     : '';
 }
 
@@ -726,19 +692,20 @@ document.getElementById('blinds-skip').addEventListener('click', () => {
   continueToPlayerPicker();
 });
 
-// Add a new permanent player to the roster
+// Add a player to this tournament (not persisted anywhere).
 document.getElementById('btn-add-roster').addEventListener('click', () => {
   const input = document.getElementById('new-roster-input');
   const name  = input.value.trim();
   if (!name) return;
 
-  const exists = roster.some(p => p.name.toLowerCase() === name.toLowerCase());
-  if (exists) { toast(`${name} is already in the roster.`, 'info'); return; }
+  const inSession = currentPlayers.some(p => p.player_name.toLowerCase() === name.toLowerCase());
+  const already   = [...pickerSelected].some(n => n.toLowerCase() === name.toLowerCase());
+  if (inSession) { toast(`${name} is already in this tournament.`, 'info'); input.value = ''; return; }
+  if (already)   { toast(`${name} is already added.`, 'info'); input.value = ''; return; }
 
-  saveLocalPlayer(name);
-  loadRoster(); // rebuild roster with new name included
-  input.value = '';
   pickerSelected.add(name);
+  input.value = '';
+  input.focus();
   renderRosterChips();
   renderPickerCount();
 });
@@ -2278,7 +2245,6 @@ function boot() {
   updateModeUI('home');
   initSplash(() => {});
   loadDashboard();
-  loadRoster();
 }
 
 /* ── Boot ─────────────────────────────────────────────────────── */

@@ -5,6 +5,3 @@
 const API_BASE = 'https://poker-live-api.goodgaminggm.workers.dev/api';
 
 const CURRENCY = '$';
-
-// Pre-seed the player roster (optional — players can also be added in-app)
-const DEFAULT_ROSTER = [];
