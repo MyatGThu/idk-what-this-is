@@ -51,88 +51,6 @@
   --sar: env(safe-area-inset-right,  0px);
 }
 
-/* ── Lock Screen ─────────────────────────────────────────────────── */
-#lock-screen {
-  position: fixed;
-  inset: 0;
-  background: var(--bg);
-  z-index: 1001;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: calc(20px + var(--sat)) 20px calc(20px + var(--sab));
-}
-
-#lock-screen.hidden { display: none !important; }
-
-.lock-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 22px;
-  width: 100%;
-  max-width: 360px;
-  animation: fadeIn 0.4s var(--ease);
-}
-
-.lock-brand {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 14px;
-}
-
-.lock-suit {
-  font-size: 54px;
-  color: var(--accent);
-  filter: drop-shadow(0 0 10px rgba(201,162,74,0.45));
-  animation: suitPulse 2s ease-in-out infinite;
-  line-height: 1;
-}
-
-.lock-title {
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-}
-
-.lock-subtitle {
-  font-size: 14px;
-  color: var(--muted);
-}
-
-.lock-form {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-}
-
-.lock-input {
-  font-size: 16px;
-  text-align: center;
-  letter-spacing: 3px;
-  padding: 14px;
-}
-
-.lock-btn { width: 100%; padding: 13px; font-size: 15px; }
-
-.lock-error {
-  font-size: 13px;
-  color: var(--loss);
-  font-family: 'JetBrains Mono', monospace;
-}
-
-@keyframes shake {
-  0%, 100% { transform: translateX(0);   }
-  20%       { transform: translateX(-8px); }
-  40%       { transform: translateX( 8px); }
-  60%       { transform: translateX(-5px); }
-  80%       { transform: translateX( 5px); }
-}
-
-.shake { animation: shake 0.42s var(--ease); }
 
 /* ── Splash Screen ──────────────────────────────────────────────── */
 #splash {
@@ -2854,10 +2772,6 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
   .dash-stat-amount { font-size: 20px; }
   .dash-stat-name   { font-size: 13px; }
 
-  /* Lock screen */
-  .lock-suit  { font-size: 44px; }
-  .lock-title { font-size: 24px; }
-
   /* Winner overlay */
   .winner-card-announce  { padding: 28px 24px; }
   .winner-announce-name  { font-size: 24px; }
@@ -2940,10 +2854,6 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
   .splash-content { gap: 16px; }
   .rf-hand        { height: 100px; }
   .playing-card   { width: 56px; height: 82px; }
-
-  /* Lock screen */
-  .lock-content { gap: 14px; }
-  .lock-suit    { font-size: 36px; }
 
   /* Mode selector — tighten for short viewports */
   #mode-select          { padding: 12px max(16px, var(--sal)); }

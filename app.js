@@ -2504,68 +2504,8 @@ function boot() {
   loadRoster();
 }
 
-function unlockApp() {
-  document.activeElement?.blur(); // dismiss keyboard & reset iOS viewport zoom
-  sessionStorage.setItem('poker_auth', 'true');
-  const lockEl = document.getElementById('lock-screen');
-  lockEl.style.transition = 'opacity 0.4s ease';
-  lockEl.style.opacity    = '0';
-  setTimeout(() => {
-    lockEl.classList.add('hidden');
-    document.getElementById('splash').style.removeProperty('display');
-    boot();
-  }, 400);
-}
-
-document.getElementById('lock-submit').addEventListener('click', async () => {
-  const pw    = document.getElementById('lock-password').value;
-  const btn   = document.getElementById('lock-submit');
-  const errEl = document.getElementById('lock-error');
-  const inpEl = document.getElementById('lock-password');
-
-  if (!pw) return;
-
-  btn.disabled    = true;
-  btn.textContent = 'Checking…';
-  errEl.classList.add('hidden');
-
-  const { data, error } = await api('/auth', 'POST', { password: pw });
-
-  btn.disabled    = false;
-  btn.textContent = 'Unlock';
-
-  if (data?.success) {
-    unlockApp();
-    return;
-  }
-
-  if (error && error.kind !== 'http') {
-    // Config or network problem — show the accurate reason, not "wrong password"
-    errEl.textContent = error.message;
-    errEl.classList.remove('hidden');
-    return;
-  }
-
-  // HTTP 401 from /auth → genuinely the wrong password
-  errEl.textContent = 'Incorrect password';
-  errEl.classList.remove('hidden');
-  inpEl.classList.add('shake');
-  setTimeout(() => inpEl.classList.remove('shake'), 450);
-  inpEl.value = '';
-  inpEl.focus();
-});
-
-document.getElementById('lock-password').addEventListener('keydown', e => {
-  if (e.key === 'Enter') document.getElementById('lock-submit').click();
-});
-
 /* ── Boot ─────────────────────────────────────────────────────── */
-if (sessionStorage.getItem('poker_auth') === 'true') {
-  boot();
-} else {
-  document.getElementById('lock-screen').classList.remove('hidden');
-  document.getElementById('splash').style.display = 'none';
-}
+boot();
 
 /* ── Service Worker registration (PWA) ─────────────────────────── */
 if ('serviceWorker' in navigator) {
