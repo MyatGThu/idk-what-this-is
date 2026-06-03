@@ -58,7 +58,7 @@ let pendingDeleteSessionId = null;
 let renameMode = false;
 
 // App mode
-let currentMode = localStorage.getItem('poker_mode') || 'home'; // 'home' | 'casino'
+let currentMode = 'home';
 
 // Casino visit modal state
 let editingVisitId  = null;
@@ -1999,7 +1999,7 @@ function showWinnerAnnouncement(name, amount) {
    MODE SELECTOR & CASINO MODE
    ═══════════════════════════════════════════════════════════════ */
 
-// Called by: mode card click, switchMode()
+// Called by: boot()
 function updateModeUI(mode) {
   const btns = document.querySelectorAll('.nav-btn');
   const setNavIcon = (btn, id) => btn.querySelector('.nav-icon use').setAttribute('href', id);
@@ -2020,23 +2020,6 @@ function updateModeUI(mode) {
   }
 }
 
-function switchMode(mode) {
-  localStorage.setItem('poker_mode', mode);
-  currentMode = mode;
-  document.getElementById('mode-select').classList.add('hidden');
-  updateModeUI(mode);
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector('.nav-btn[data-view="dashboard"]').classList.add('active');
-  if (mode === 'casino') loadCasinoDashboard();
-  else loadDashboard();
-}
-
-document.querySelectorAll('.mode-card').forEach(card => {
-  card.addEventListener('click', () => switchMode(card.dataset.mode));
-});
-
-document.getElementById('btn-switch-to-home').addEventListener('click', () => switchMode('home'));
-document.getElementById('btn-switch-to-casino').addEventListener('click', () => switchMode('casino'));
 
 // ── Period filter helper ─────────────────────────────────────────
 
@@ -2490,17 +2473,10 @@ function applyCurrency() {
 
 function boot() {
   applyCurrency();
-  initSplash(() => {
-    const mode = localStorage.getItem('poker_mode');
-    if (!mode) {
-      document.getElementById('mode-select').classList.remove('hidden');
-    } else {
-      currentMode = mode;
-      updateModeUI(mode);
-      if (mode === 'casino') loadCasinoDashboard();
-    }
-  });
-  loadDashboard(); // pre-load home dashboard in background
+  currentMode = 'home';
+  updateModeUI('home');
+  initSplash(() => {});
+  loadDashboard();
   loadRoster();
 }
 

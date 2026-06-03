@@ -247,7 +247,6 @@
 }
 .icon-btn .icon { vertical-align: middle; }
 /* Large "hero" icons read better with a slightly lighter stroke */
-.mode-card-icon .icon,
 .winner-trophy .icon,
 .dash-crown .icon { stroke-width: 1.6; }
 
@@ -2150,115 +2149,6 @@ header > .icon-btn { flex-shrink: 0; }
 .install-dismiss:hover { color: var(--text); }
 
 /* ── Mode Selector ───────────────────────────────────────────────── */
-#mode-select {
-  position: fixed;
-  inset: 0;
-  background: var(--bg);
-  z-index: 950;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: calc(24px + var(--sat)) 20px calc(24px + var(--sab));
-  animation: fadeIn 0.4s var(--ease);
-}
-
-#mode-select.hidden { display: none !important; }
-
-.mode-select-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 28px;
-  width: 100%;
-  max-width: 500px;
-}
-
-.mode-select-brand {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  text-align: center;
-}
-
-.mode-select-suit {
-  font-size: 44px;
-  color: var(--accent);
-  filter: drop-shadow(0 0 10px rgba(201,162,74,0.45));
-  animation: suitPulse 2s ease-in-out infinite;
-  line-height: 1;
-}
-
-.mode-select-title {
-  font-family: var(--font-display);
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: -0.5px;
-}
-
-.mode-select-sub {
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.mode-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  width: 100%;
-}
-
-.mode-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 24px 16px 20px;
-  border-radius: var(--radius);
-  cursor: pointer;
-  border: none;
-  text-align: center;
-  transition: transform 0.2s var(--ease), box-shadow 0.2s;
-}
-
-.mode-card:active { transform: scale(0.97); }
-
-.mode-card-home {
-  background: linear-gradient(150deg, var(--surface2) 0%, rgba(47,182,125,0.08) 100%);
-  border: 1px solid rgba(47,182,125,0.3);
-}
-
-.mode-card-home:hover {
-  border-color: var(--win);
-  box-shadow: 0 8px 28px rgba(47,182,125,0.18);
-  transform: translateY(-3px);
-}
-
-.mode-card-casino {
-  background: linear-gradient(150deg, var(--surface2) 0%, rgba(240,180,41,0.08) 100%);
-  border: 1px solid rgba(240,180,41,0.3);
-}
-
-.mode-card-casino:hover {
-  border-color: var(--gold);
-  box-shadow: 0 8px 32px rgba(240,180,41,0.2);
-  transform: translateY(-3px);
-}
-
-.mode-card-icon { font-size: 40px; line-height: 1; }
-
-.mode-card-name {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 17px;
-  color: var(--text);
-}
-
-.mode-card-desc {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.5;
-}
 
 /* ── Casino ──────────────────────────────────────────────────────── */
 .casino-stat-grid { display: flex; flex-direction: column; gap: 10px; }
@@ -2855,13 +2745,6 @@ input[type="date"].input::-webkit-calendar-picker-indicator {
   .rf-hand        { height: 100px; }
   .playing-card   { width: 56px; height: 82px; }
 
-  /* Mode selector — tighten for short viewports */
-  #mode-select          { padding: 12px max(16px, var(--sal)); }
-  .mode-select-content  { gap: 16px; }
-  .mode-select-suit     { font-size: 30px; }
-  .mode-select-title    { font-size: 22px; }
-  .mode-card            { padding: 14px 12px; gap: 6px; }
-  .mode-card-icon       { font-size: 30px; }
 
   /* Casino dashboard — stats side by side stay compact */
   .casino-stat-value { font-size: 30px; }
