@@ -10,21 +10,24 @@ which is the whole reason it fits on Pages.
 
 ---
 
-## GitHub setup
+## One-time GitHub setup
 
-None, normally. The workflow passes `enablement: true` to
-`actions/configure-pages`, so the first push to `master` turns Pages on itself
-and publishes. No secrets, no `CNAME`, no environment variables.
-
-If that step ever fails with `Get Pages site failed` or `Resource not
-accessible by integration`, enable it by hand instead:
+Pages has to be switched on by hand once. Until it is, the workflow fails at
+`actions/configure-pages` and nothing publishes.
 
 1. **Settings → Pages → Build and deployment → Source → GitHub Actions.**
    (Not "Deploy from a branch" — the site is built, so it needs the Actions path.)
-2. Re-run the workflow.
+2. Re-run the latest **Build and deploy to Pages** workflow, or push anything to
+   `master`.
 
-Also check **Settings → Actions → General → Workflow permissions** if the token
-looks under-privileged; the `permissions:` block in the workflow covers the rest.
+That is the whole setup — no secrets, no `CNAME`, no environment variables.
+
+The workflow does pass `enablement: true` to `actions/configure-pages`, which
+asks the action to create the Pages site itself. That only works when the token
+has admin rights on the repository; the default `GITHUB_TOKEN` does not, and
+fails with `Resource not accessible by integration - .../pages#create-a-apiname-pages-site`.
+It is left in place because it costs nothing once Pages exists and does work
+under a suitably privileged token, but it is not a substitute for step 1 here.
 
 ### Using a custom domain later
 

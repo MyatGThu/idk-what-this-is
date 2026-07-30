@@ -31,9 +31,11 @@ jobs:
       - name: Build site
         run: node scripts/build.mjs
 
-      # enablement turns Pages on (build_type: workflow) the first time this
-      # runs, using the pages: write permission above — so the repository does
-      # not have to be configured by hand before the first deploy.
+      # enablement asks the action to create the Pages site itself. It only
+      # succeeds with a token that has admin rights on the repository — the
+      # default GITHUB_TOKEN does not, and returns "Resource not accessible by
+      # integration". Pages must therefore be enabled once under
+      # Settings -> Pages -> Source -> GitHub Actions; see the README.
       - uses: actions/configure-pages@v5
         if: github.event_name != 'pull_request'
         with:
