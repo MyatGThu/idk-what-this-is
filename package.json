@@ -1,6 +1,16 @@
 {
-  "name": "poker-live",
+  "name": "prompt-engineer",
   "version": "1.0.0",
   "private": true,
-  "description": "Poker Live — pub/APL tournament tracker (placements + season points)"
+  "type": "module",
+  "description": "A version-controlled prompt library, published as a static site on GitHub Pages.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "serve": "node scripts/serve.mjs",
+    "dev": "node scripts/build.mjs && node scripts/serve.mjs",
+    "new": "node scripts/new-prompt.mjs"
+  }
 }
