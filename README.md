@@ -10,22 +10,21 @@ which is the whole reason it fits on Pages.
 
 ---
 
-## One-time GitHub setup
+## GitHub setup
 
-The workflow is committed, but Pages has to be switched on by hand once:
+None, normally. The workflow passes `enablement: true` to
+`actions/configure-pages`, so the first push to `master` turns Pages on itself
+and publishes. No secrets, no `CNAME`, no environment variables.
 
-1. Go to **Settings → Pages** in this repository.
-2. Under **Build and deployment → Source**, choose **GitHub Actions**.
+If that step ever fails with `Get Pages site failed` or `Resource not
+accessible by integration`, enable it by hand instead:
+
+1. **Settings → Pages → Build and deployment → Source → GitHub Actions.**
    (Not "Deploy from a branch" — the site is built, so it needs the Actions path.)
-3. Push to `master`. The **Build and deploy to Pages** workflow runs and
-   publishes in about a minute.
+2. Re-run the workflow.
 
-That is the entire setup. Nothing else needs configuring — no secrets, no
-custom domain, no `CNAME`, no Pages environment variables.
-
-If the first run fails with `Resource not accessible by integration`, check
-**Settings → Actions → General → Workflow permissions** and make sure workflows
-are allowed to run. The `permissions:` block in the workflow handles the rest.
+Also check **Settings → Actions → General → Workflow permissions** if the token
+looks under-privileged; the `permissions:` block in the workflow covers the rest.
 
 ### Using a custom domain later
 
