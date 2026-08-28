@@ -1,6 +1,6 @@
 # Grocery Discount Hunter — licensing backend
 
-A zero-dependency Node (>= 18) server that sells the $6.99/month subscription
+A zero-dependency Node (>= 18) server that sells the A$6.99/month (AUD) subscription
 through Stripe Checkout and answers license-status lookups from the extension.
 One file (`server.js`), no npm install, JSON-file persistence.
 
@@ -21,7 +21,7 @@ the backend from its popup/paywall pages without any extra host permission.
 1. Create a Stripe account and stay in **Test mode** (toggle in the dashboard).
 2. **Product**: Dashboard → Product catalog → *Add product* — name it
    "Grocery Discount Hunter".
-3. **Price**: on the product, add a **recurring** price of **$6.99 per month**.
+3. **Price**: on the product, add a **recurring** price of **A$6.99 per month** with the currency set to **AUD** (the price object determines the charge currency — the extension and this server never set it).
    Copy its price ID (`price_...`).
 4. **API key**: Dashboard → Developers → API keys — copy the **secret** key
    (`sk_test_...`, later `sk_live_...`).
@@ -40,7 +40,7 @@ mode and swap the env vars.
 |-------------------------|--------------------------------------|--------------------------------------------------------------|
 | `PORT`                  | `8787`                               | Listen port                                                  |
 | `STRIPE_SECRET_KEY`     | *(unset)*                            | `sk_...`. **Unset = dev mode**: `/api/checkout` skips Stripe and returns an immediately-active `devToken` |
-| `STRIPE_PRICE_ID`       | *(unset)*                            | The `price_...` id of the $6.99/month recurring price        |
+| `STRIPE_PRICE_ID`       | *(unset)*                            | The `price_...` id of the A$6.99/month (AUD) recurring price        |
 | `STRIPE_WEBHOOK_SECRET` | *(unset)*                            | `whsec_...`. Unset = webhook signatures are **not** verified (dev only) |
 | `SUCCESS_URL`           | `https://example.invalid/subscribed` | Where Stripe sends the customer after paying. Replace with a small hosted "Subscription active — you can close this tab" page |
 | `CANCEL_URL`            | `https://example.invalid/canceled`   | Where Stripe sends the customer if they back out. Replace with a "Checkout canceled — you can close this tab" page |

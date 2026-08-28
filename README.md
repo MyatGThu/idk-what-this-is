@@ -30,7 +30,7 @@ These are hard rules enforced across the codebase (see `docs/ARCHITECTURE.md`):
 
 ## Pricing
 
-Free for 14 days from install, then **$6.99/month** via Stripe. The subscription
+Free for 14 days from install, then **A$6.99/month (AUD)** via Stripe. The subscription
 is handled by the bundled zero-dependency licensing server in `backend/`.
 
 ## Quick start

@@ -90,7 +90,8 @@
  */
 
 export const TRIAL_DAYS = 14;
-export const SUBSCRIPTION_PRICE_LABEL = '$6.99 / month';
+export const SUBSCRIPTION_PRICE_LABEL = 'A$6.99 / month';
+export const SUBSCRIPTION_CURRENCY = 'AUD';
 export const DEFAULT_BACKEND_URL = 'http://localhost:8787';
 
 /** @returns {Settings} */

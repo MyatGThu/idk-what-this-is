@@ -9,7 +9,7 @@ A cross-browser (Manifest V3) WebExtension that:
 5. On the user's request, adds **only the user's requested items** (the discounted
    matches they tick) to the store's cart, then stops — **checkout is always a human
    action; the extension never places an order or touches payment on a store site.**
-6. Free for 14 days from install, then requires a $6.99/month subscription
+6. Free for 14 days from install, then requires an A$6.99/month (AUD) subscription
    (Stripe Checkout via the bundled licensing backend in `backend/`).
 
 ## Repository layout

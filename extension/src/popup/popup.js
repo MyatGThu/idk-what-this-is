@@ -134,7 +134,7 @@ function renderLicense() {
       el(
         'p',
         'expired-headline',
-        `Your ${TRIAL_DAYS}-day free trial has ended — subscribe for $6.99/month`,
+        `Your ${TRIAL_DAYS}-day free trial has ended — subscribe for A$6.99/month`,
       ),
     );
     const button = el('button', 'button primary wide', 'Subscribe');
