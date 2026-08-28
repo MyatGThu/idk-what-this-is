@@ -68,6 +68,8 @@ function openPaywall() {
 }
 
 function openInNewTab(url) {
+  // Scraped hrefs are untrusted; only ever open web URLs from the popup.
+  if (!/^https?:\/\//i.test(String(url || ''))) return;
   ext.tabs.create({ url }).catch(() => {});
 }
 
@@ -366,10 +368,45 @@ async function startScan() {
       showExpired();
       return;
     }
+    if (res.code === 'NO_HOST_ACCESS' && Array.isArray(res.origins) && res.origins.length > 0) {
+      renderHostAccessPrompt(res.origins);
+      return;
+    }
     setScanNote(res.error || 'Could not start the scan.', true);
     return;
   }
   beginPolling();
+}
+
+/**
+ * Firefox MV3 does not grant store-site access at install; ask for it from a
+ * user gesture, then retry the scan.
+ * @param {string[]} origins
+ */
+function renderHostAccessPrompt(origins) {
+  const note = $('scan-note');
+  note.hidden = false;
+  note.className = 'feedback error';
+  note.textContent = 'Your browser needs permission to read the store sites. ';
+  const button = el('button', 'button small', 'Grant store access');
+  button.type = 'button';
+  button.addEventListener('click', async () => {
+    let granted = false;
+    try {
+      if (ext.permissions && typeof ext.permissions.request === 'function') {
+        granted = await ext.permissions.request({ origins });
+      }
+    } catch {
+      granted = false;
+    }
+    if (granted) {
+      setScanNote('');
+      void startScan();
+    } else {
+      setScanNote('Store access was not granted — the scan cannot run without it.', true);
+    }
+  });
+  note.append(button);
 }
 
 function beginPolling() {

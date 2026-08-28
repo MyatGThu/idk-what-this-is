@@ -283,7 +283,10 @@ async function handleCheckout(config, store, req, res) {
   form.set('line_items[0][price]', config.stripePriceId);
   form.set('line_items[0][quantity]', '1');
   form.set('customer_email', email);
-  form.set('success_url', config.successUrl);
+  // The success page gets the token too, so a hosted page can show it: the
+  // extension's paywall polls with the token returned below, but the user may
+  // finish checkout after closing that page.
+  form.set('success_url', withQueryParam(config.successUrl, 'license_token', license.token));
   form.set('cancel_url', config.cancelUrl);
   form.set('client_reference_id', license.token);
 
@@ -309,7 +312,21 @@ async function handleCheckout(config, store, req, res) {
     return;
   }
 
-  sendJson(res, 200, { ok: true, url: session.url });
+  // The token is the purchaser's own bearer credential: without it in this
+  // response, a paying customer would have no way to ever activate — nothing
+  // else (receipt email, success page by default) delivers it.
+  sendJson(res, 200, { ok: true, url: session.url, token: license.token });
+}
+
+/** @param {string} url @param {string} key @param {string} value */
+function withQueryParam(url, key, value) {
+  try {
+    const u = new URL(url);
+    u.searchParams.set(key, value);
+    return u.href;
+  } catch {
+    return url;
+  }
 }
 
 /**

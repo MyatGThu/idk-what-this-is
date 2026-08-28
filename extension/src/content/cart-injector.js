@@ -24,7 +24,10 @@
 
   /**
    * Locate the tile for a product: exact normalized title match first,
-   * recorded tileIndex as fallback.
+   * recorded tileIndex as fallback — but ONLY when the tile at that index
+   * still shows the same product. A reordered/refreshed results page must
+   * yield "not found" (failed), never a click on something the user did not
+   * approve.
    * @param {Element[]} tiles
    * @param {string} titleSelector
    * @param {{title: string, tileIndex: number}} product
@@ -32,14 +35,23 @@
    */
   function findTile(tiles, titleSelector, product) {
     const wanted = normalize(product.title);
-    if (wanted) {
-      for (const tile of tiles) {
-        const titleEl = tile.querySelector(titleSelector);
-        if (titleEl && normalize(titleEl.textContent) === wanted) return tile;
-      }
+    if (!wanted) return null;
+    for (const tile of tiles) {
+      const titleEl = tile.querySelector(titleSelector);
+      if (titleEl && normalize(titleEl.textContent) === wanted) return tile;
     }
     const byIndex = tiles[product.tileIndex];
-    return byIndex || null;
+    if (!byIndex) return null;
+    const actual = normalize(textOfTitle(byIndex, titleSelector));
+    if (!actual) return null;
+    if (actual === wanted || actual.includes(wanted) || wanted.includes(actual)) return byIndex;
+    return null;
+  }
+
+  /** @param {Element} tile @param {string} titleSelector */
+  function textOfTitle(tile, titleSelector) {
+    const el = tile.querySelector(titleSelector);
+    return el && el.textContent ? el.textContent : '';
   }
 
   /** @param {Element} button */
@@ -71,24 +83,30 @@
         continue;
       }
       const tile = findTile(tiles, sel.title, product);
-      const button = tile ? tile.querySelector(sel.addToCartButton) : null;
-      if (!button || looksLikeCheckout(button)) {
+      if (!tile) {
         failed++;
         continue;
       }
       const quantity = Number(item.quantity);
       const clicks = Math.min(Number.isFinite(quantity) && quantity >= 1 ? quantity : 1, MAX_CLICKS);
-      let ok = true;
+      let dispatched = 0;
       for (let i = 0; i < clicks; i++) {
         if (i > 0) await sleep(CLICK_GAP_MS);
+        // Re-locate and re-vet the button before EVERY click: SPAs re-render
+        // tile controls between clicks (add button -> stepper/mini-cart CTA),
+        // and a stale or morphed control must stop the item, not get clicked.
+        const button = tile.querySelector(sel.addToCartButton);
+        if (!button || !button.isConnected || !tile.contains(button) || looksLikeCheckout(button)) {
+          break;
+        }
         try {
           button.click();
+          dispatched++;
         } catch {
-          ok = false;
           break;
         }
       }
-      if (ok) added++;
+      if (dispatched > 0) added++;
       else failed++;
     }
     return { ok: true, added, failed };

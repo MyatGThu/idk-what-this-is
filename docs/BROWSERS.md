@@ -48,7 +48,7 @@ in `extension/manifest.firefox.json`:
   workers; it uses `background.scripts` (an event page) instead of
   `background.service_worker`. Same source file, different manifest key.
 - **`browser_specific_settings.gecko`**: the add-on id and
-  `strict_min_version` (121.0) Firefox requires for MV3 features used here.
+  `strict_min_version` (127.0): Firefox 127 is the first release that prompts for host permissions at install for MV3 extensions; on older Firefox the store content scripts would never inject. The popup also detects missing host access and offers a "Grant store access" button (`permissions.request`).
 
 Local install (temporary, resets on restart):
 

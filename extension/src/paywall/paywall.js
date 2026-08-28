@@ -5,8 +5,13 @@
 import { ext } from '../common/compat.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ACTIVATION_POLL_MS = 5000;
+const ACTIVATION_POLL_LIMIT = 120; // ~10 minutes of waiting for the webhook
 
 const $ = (id) => document.getElementById(id);
+
+// Only the newest checkout attempt keeps polling for activation.
+let activationGeneration = 0;
 
 /**
  * sendMessage that never throws: failures collapse to the protocol shape.
@@ -62,21 +67,55 @@ async function startCheckout() {
     setFeedback(feedback, res.error || 'Could not start checkout. Try again shortly.', 'error');
     return;
   }
+  if (res.devToken) {
+    setFeedback(feedback, 'Dev license activated — you are all set.', 'success');
+    await refreshLicenseStatus();
+    return;
+  }
   if (res.url) {
     ext.tabs.create({ url: res.url }).catch(() => {});
     setFeedback(
       feedback,
-      'Stripe Checkout opened in a new tab. After paying, activate with the token from your receipt email.',
+      'Stripe Checkout opened in a new tab. Complete the payment there — ' +
+        'this page will activate your license automatically.',
       'success',
     );
-    return;
-  }
-  if (res.devToken) {
-    setFeedback(feedback, 'Dev license activated.', 'success');
-    await refreshLicenseStatus();
+    if (res.token) {
+      // Keep the token visible so activation also works manually / later.
+      const tokenInput = $('token-input');
+      if (tokenInput && !tokenInput.value) tokenInput.value = res.token;
+      void pollForActivation(res.token, feedback);
+    }
     return;
   }
   setFeedback(feedback, 'The licensing server did not return a checkout link.', 'error');
+}
+
+/**
+ * After Stripe Checkout starts, keep asking the background to activate the
+ * pending token; it succeeds as soon as the webhook confirms payment.
+ * @param {string} token
+ * @param {HTMLElement} feedback
+ */
+async function pollForActivation(token, feedback) {
+  const generation = ++activationGeneration;
+  for (let i = 0; i < ACTIVATION_POLL_LIMIT; i++) {
+    await new Promise((resolve) => setTimeout(resolve, ACTIVATION_POLL_MS));
+    if (generation !== activationGeneration) return;
+    const res = await send({ type: 'ACTIVATE_LICENSE', token });
+    if (generation !== activationGeneration) return;
+    if (res.ok) {
+      setFeedback(feedback, 'Payment confirmed — your subscription is active.', 'success');
+      await refreshLicenseStatus();
+      return;
+    }
+  }
+  setFeedback(
+    feedback,
+    'Still waiting for payment confirmation. If you completed checkout, keep this token safe ' +
+      'and press Activate below once your payment settles.',
+    'error',
+  );
 }
 
 async function activateLicense() {

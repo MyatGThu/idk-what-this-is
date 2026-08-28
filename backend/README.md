@@ -93,10 +93,14 @@ origin without a trailing slash (default `http://localhost:8787`, production
 e.g. `https://license.yourdomain.com`). Because the backend sends permissive
 CORS headers, the extension needs no additional host permission to call it.
 
-Flow: the paywall page posts the user's email to `/api/checkout`, opens the
-returned Stripe URL in a tab, and after payment the user pastes/receives their
-license token, which the background verifies via `GET /api/license/<token>`
-(re-checked at most every 12 hours).
+Flow: the paywall page posts the user's email to `/api/checkout`; the response
+carries the Stripe Checkout `url` **and** the pending license `token`. The
+paywall opens the URL in a tab and polls activation with that token until the
+webhook confirms payment (the token is also appended to `success_url` as
+`license_token`, so a hosted success page can display it as a backup). Once
+active, the background re-verifies via `GET /api/license/<token>` at most every
+12 hours; a subscription stays usable offline for a 72-hour grace window after
+its last successful verification.
 
 ## 5. Deployment
 

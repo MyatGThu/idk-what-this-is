@@ -45,6 +45,26 @@ function expiredResponse() {
   return { ok: false, code: 'LICENSE_EXPIRED', error: 'Free trial ended' };
 }
 
+/**
+ * Firefox MV3 does not grant host permissions automatically; without them the
+ * content scripts never inject and every store would silently report 'error'.
+ * Returns the origin patterns still missing ([] when all granted or the
+ * permissions API is unavailable, e.g. Chrome granted at install).
+ * @param {Array<{matchPatterns: string[]}>} stores
+ * @returns {Promise<string[]>}
+ */
+async function missingOrigins(stores) {
+  if (!ext.permissions || typeof ext.permissions.contains !== 'function') return [];
+  const origins = [...new Set(stores.flatMap((s) => s.matchPatterns || []))];
+  if (origins.length === 0) return [];
+  try {
+    const granted = await ext.permissions.contains({ origins });
+    return granted ? [] : origins;
+  } catch {
+    return [];
+  }
+}
+
 // One handler per protocol message type (docs/ARCHITECTURE.md, popup/options -> background).
 const handlers = {
   async GET_REGION() {
@@ -55,6 +75,16 @@ const handlers = {
   async START_SCAN() {
     const { status } = await licenseSnapshot();
     if (status === 'expired') return expiredResponse();
+    const { stores } = await getRegion();
+    const origins = await missingOrigins(stores);
+    if (origins.length > 0) {
+      return {
+        ok: false,
+        code: 'NO_HOST_ACCESS',
+        origins,
+        error: 'The browser has not granted access to the store sites yet.',
+      };
+    }
     return startScan();
   },
 
@@ -81,8 +111,13 @@ const handlers = {
     if (!email) return { ok: false, error: 'An email address is required to start checkout.' };
     const result = await licensing.startCheckout(email);
     const url = typeof result === 'string' ? result : result && result.url;
+    const devToken = result && typeof result === 'object' ? result.devToken : undefined;
+    // Dev mode (no Stripe key on the backend): the license was just activated
+    // locally — that is a success even though there is no checkout URL.
+    if (devToken) return { ok: true, url: url || '', devToken };
     if (!url) return { ok: false, error: 'Checkout could not be started. Try again later.' };
-    return { ok: true, url };
+    const token = result && typeof result === 'object' ? result.token : undefined;
+    return { ok: true, url, token: token || null };
   },
 
   async ACTIVATE_LICENSE(msg) {
@@ -122,9 +157,21 @@ if (ext.runtime.onMessage) {
 }
 
 if (ext.alarms && typeof ext.alarms.create === 'function' && ext.alarms.onAlarm) {
-  Promise.resolve(
-    ext.alarms.create(LICENSE_ALARM, { delayInMinutes: 5, periodInMinutes: 24 * 60 }),
-  ).catch(() => {});
+  // Create the alarm only when absent: alarms.create with an existing name
+  // REPLACES it, and this top-level code runs on every worker startup — an
+  // unconditional create would reschedule the "daily" check 5 minutes after
+  // each wake, i.e. a perpetual ~5-minute wake loop.
+  (async () => {
+    try {
+      const existing =
+        typeof ext.alarms.get === 'function' ? await ext.alarms.get(LICENSE_ALARM) : null;
+      if (!existing) {
+        await ext.alarms.create(LICENSE_ALARM, { delayInMinutes: 5, periodInMinutes: 24 * 60 });
+      }
+    } catch {
+      // Alarms are an optimization; the message-path refreshStatus() suffices.
+    }
+  })();
   ext.alarms.onAlarm.addListener((alarm) => {
     if (alarm && alarm.name === LICENSE_ALARM) {
       Promise.resolve(licensing.refreshStatus()).catch(() => {});

@@ -54,7 +54,11 @@
     const href = anchor && anchor.getAttribute('href');
     if (!href) return '';
     try {
-      return new URL(href, location.href).href;
+      const url = new URL(href, location.href);
+      // Store pages are untrusted input: never let javascript:/data:/etc.
+      // reach the popup, which renders these as clickable links.
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+      return url.href;
     } catch {
       return '';
     }

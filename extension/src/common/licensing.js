@@ -8,6 +8,11 @@ import { getLicense, setLicense, getSettings } from './storage.js';
 
 const DAY_MS = 864e5;
 const RECHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;
+// A token counts as 'active' only while its last successful backend
+// verification is this recent (12h re-check cadence + offline grace). Without
+// a recency bound, a canceled subscription would stay active forever whenever
+// the backend is unreachable.
+export const ACTIVE_GRACE_MS = 72 * 60 * 60 * 1000;
 const LICENSE_FETCH_TIMEOUT_MS = 5000;
 const CHECKOUT_FETCH_TIMEOUT_MS = 10000;
 
@@ -23,7 +28,14 @@ function trialDaysOf(license) {
  */
 export function evaluate(license, now = Date.now()) {
   if (!license) return 'expired';
-  if (license.token && license.status === 'active') return 'active';
+  if (
+    license.token &&
+    license.status === 'active' &&
+    Number.isFinite(license.lastCheckedAt) &&
+    now - license.lastCheckedAt <= ACTIVE_GRACE_MS
+  ) {
+    return 'active';
+  }
   if (now < license.installDate + trialDaysOf(license) * DAY_MS) return 'trial';
   return 'expired';
 }
@@ -36,7 +48,7 @@ export function evaluate(license, now = Date.now()) {
  */
 export function daysLeft(license, now = Date.now()) {
   if (!license) return 0;
-  if (license.token && license.status === 'active') return 0;
+  if (evaluate(license, now) === 'active') return 0;
   const remainingMs = license.installDate + trialDaysOf(license) * DAY_MS - now;
   return remainingMs > 0 ? Math.ceil(remainingMs / DAY_MS) : 0;
 }
@@ -107,12 +119,17 @@ export async function refreshStatus() {
   ) {
     const record = await fetchLicenseRecord(license.token);
     if (record) {
-      license.lastCheckedAt = now;
       if (record.status === 'active') {
+        license.lastCheckedAt = now;
         license.status = 'active';
         if (record.email) license.email = record.email;
+      } else if (record.status === 'pending') {
+        // Payment not confirmed yet: leave lastCheckedAt unset so the next
+        // refresh re-verifies immediately instead of waiting out the 12h gate.
+        license.status = evaluate({ ...license, token: null }, now);
       } else {
         // canceled / unknown: keep the token, fall back to the trial clock.
+        license.lastCheckedAt = now;
         license.status = evaluate({ ...license, token: null }, now);
       }
     }
@@ -127,9 +144,13 @@ export async function refreshStatus() {
 /**
  * Start a Stripe Checkout session for `email`. When the backend runs in
  * offline dev mode and returns a devToken, the token is activated immediately.
+ * In Stripe mode the backend also returns the pending license `token`; it is
+ * persisted (without granting anything — evaluate() requires a verified
+ * 'active' status) so a later refreshStatus()/ACTIVATE_LICENSE can flip the
+ * license on once the Stripe webhook confirms payment.
  * Throws with the backend's error message on failure.
  * @param {string} email
- * @returns {Promise<{url: string, devToken?: string}>}
+ * @returns {Promise<{url: string, token: string|null, devToken?: string}>}
  */
 export async function startCheckout(email) {
   const settings = await getSettings();
@@ -144,9 +165,21 @@ export async function startCheckout(email) {
   }
   if (data.devToken) {
     await activate(data.devToken);
-    return { url: data.url || '', devToken: data.devToken };
+    return { url: data.url || '', token: data.devToken, devToken: data.devToken };
   }
-  return { url: data.url };
+  const pendingToken = typeof data.token === 'string' && data.token !== '' ? data.token : null;
+  if (pendingToken) {
+    const now = Date.now();
+    const license = await ensureLicense(now);
+    // Never downgrade a currently verified subscription to a pending token.
+    if (evaluate(license, now) !== 'active') {
+      license.token = pendingToken;
+      license.email = email;
+      license.lastCheckedAt = null; // next refreshStatus() verifies immediately
+      await setLicense(license);
+    }
+  }
+  return { url: data.url, token: pendingToken };
 }
 
 /**

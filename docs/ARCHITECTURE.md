@@ -133,11 +133,11 @@ Popup/options -> background:
 | type               | payload                                | response                                  |
 |--------------------|----------------------------------------|-------------------------------------------|
 | `GET_REGION`       | —                                      | `{ok, country, stores: StoreAdapter[]}`   |
-| `START_SCAN`       | —                                      | `{ok, scanId}` (rejects when expired)     |
-| `GET_SCAN_STATUS`  | —                                      | `{ok, scan: ScanState|null}`              |
-| `ADD_TO_CART`      | `{storeId, items: [{product: Product, quantity: number}]}` | `{ok, added: number, failed: number}` (rejects when expired) |
+| `START_SCAN`       | —                                      | `{ok, scanId}`; `code:'LICENSE_EXPIRED'` when expired; `code:'NO_HOST_ACCESS', origins:[]` when the browser has not granted store-site access (Firefox MV3 — popup then calls `permissions.request(origins)` from the user gesture) |
+| `GET_SCAN_STATUS`  | —                                      | `{ok, scan: ScanState|null}` — also reconciles a scan orphaned by a service-worker shutdown (no matching in-memory scan, or older than 20 min): marks it done with unfinished stores `'error'` |
+| `ADD_TO_CART`      | `{storeId, items: [{product: Product, quantity: number}]}` | `{ok, added: number, failed: number}`; `code:'LICENSE_EXPIRED'` when expired; `code:'SCAN_STALE'` when the last scan is older than 6h |
 | `GET_LICENSE`      | —                                      | `{ok, license, daysLeft: number}`         |
-| `START_CHECKOUT`   | `{email}`                              | `{ok, url}` (Stripe Checkout URL to open) |
+| `START_CHECKOUT`   | `{email}`                              | `{ok, url, token}` (Checkout URL + the pending license token — the paywall polls `ACTIVATE_LICENSE` with it until the Stripe webhook confirms payment); dev mode: `{ok, url:'', devToken}` (already activated) |
 | `ACTIVATE_LICENSE` | `{token}`                              | `{ok, license}`                           |
 
 Background -> content scripts (`tabs.sendMessage`):
@@ -166,10 +166,20 @@ When all groups are done, background opens the store's cart page in a normal
 - On `runtime.onInstalled`, background writes `license` with `installDate=Date.now(),
   trialDays=14, status='trial'`.
 - `licensing.evaluate(license)` returns the effective status: `'active'` if a token
-  was verified within 24h grace, else `'trial'` while `now < installDate + 14d`,
-  else `'expired'`.
+  was verified against the backend within the 72h grace window (`ACTIVE_GRACE_MS`
+  = 12h re-check cadence + offline grace), else `'trial'` while
+  `now < installDate + 14d`, else `'expired'`. Without the recency bound a
+  canceled subscription would stay active forever once the backend became
+  unreachable.
 - Background re-verifies the token against `GET {backendUrl}/api/license/:token`
-  at most once per 12h (`lastCheckedAt`).
+  at most once per 12h (`lastCheckedAt`); a token the backend still reports as
+  `pending` (checkout not completed) does not start the 12h clock, so it is
+  re-verified on every refresh until it resolves. A daily `alarms` re-check is
+  created only when absent (an unconditional `alarms.create` at worker startup
+  would replace and perpetually reschedule it).
+- Checkout delivers the pending license token to the client in the
+  `START_CHECKOUT` response and as `license_token` on the Stripe `success_url`;
+  the paywall polls `ACTIVATE_LICENSE` until the webhook flips it active.
 - `START_SCAN` / `ADD_TO_CART` return `{ok:false, code:'LICENSE_EXPIRED'}` when
   expired; popup then swaps to the paywall view.
 - Honest limitation (documented in README): client-side gating is best-effort;

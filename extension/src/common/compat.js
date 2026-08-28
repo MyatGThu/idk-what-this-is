@@ -52,7 +52,7 @@ function buildExt() {
       storage: { local: {}, onChanged: null },
       runtime: {},
       tabs: {},
-      scripting: {},
+      permissions: {},
       action: null,
       alarms: null,
     };
@@ -85,17 +85,56 @@ function buildExt() {
       onRemoved: api.tabs.onRemoved,
     },
 
-    scripting: wrap(api.scripting, ['executeScript']),
+    permissions: wrap(api.permissions, ['contains', 'request', 'getAll']),
 
     action: api.action || api.browserAction || null,
 
     alarms: api.alarms
-      ? { ...wrap(api.alarms, ['create', 'clear']), onAlarm: api.alarms.onAlarm }
+      ? { ...wrap(api.alarms, ['create', 'clear', 'get']), onAlarm: api.alarms.onAlarm }
       : null,
   };
 }
 
 export const ext = buildExt();
+
+/**
+ * Navigate a tab and wait for THAT navigation to finish. Unlike calling
+ * tabs.update + waitForTabComplete (which can resolve against the previous
+ * page, still reporting 'complete' before the new navigation commits), this
+ * requires a 'loading' transition for the tab before accepting 'complete'.
+ * @param {number} tabId
+ * @param {string} url
+ * @param {number} timeoutMs
+ */
+export function navigateAndWait(tabId, url, timeoutMs = 30000) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let sawLoading = false;
+    const finish = (fn, arg) => {
+      if (settled) return;
+      settled = true;
+      ext.tabs.onUpdated.removeListener(onUpdated);
+      if (ext.tabs.onRemoved) ext.tabs.onRemoved.removeListener(onRemoved);
+      clearTimeout(timer);
+      fn(arg);
+    };
+    const onUpdated = (updatedTabId, changeInfo) => {
+      if (updatedTabId !== tabId) return;
+      if (changeInfo.status === 'loading') sawLoading = true;
+      if (changeInfo.status === 'complete' && sawLoading) finish(resolve);
+    };
+    const onRemoved = (removedTabId) => {
+      if (removedTabId === tabId) finish(reject, new Error(`Tab ${tabId} was closed during navigation`));
+    };
+    const timer = setTimeout(
+      () => finish(reject, new Error(`Tab ${tabId} did not finish navigating in ${timeoutMs}ms`)),
+      timeoutMs,
+    );
+    ext.tabs.onUpdated.addListener(onUpdated);
+    if (ext.tabs.onRemoved) ext.tabs.onRemoved.addListener(onRemoved);
+    ext.tabs.update(tabId, { url }).catch((e) => finish(reject, e));
+  });
+}
 
 /**
  * Await a tab reaching status 'complete', with a timeout.

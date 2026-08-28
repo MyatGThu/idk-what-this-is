@@ -1,11 +1,19 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { evaluate, daysLeft } from '../extension/src/common/licensing.js';
+import { evaluate, daysLeft, ACTIVE_GRACE_MS } from '../extension/src/common/licensing.js';
 import { freshLicense, TRIAL_DAYS } from '../extension/src/common/types.js';
 
 const DAY = 864e5;
 const T0 = 1700000000000; // arbitrary fixed install time
+
+/** Active-token license verified against the backend at `checkedAt`. */
+const activeLicense = (checkedAt) => ({
+  ...freshLicense(T0),
+  token: 'tok_1',
+  status: 'active',
+  lastCheckedAt: checkedAt,
+});
 
 describe('evaluate', () => {
   test('fresh install is in trial', () => {
@@ -25,9 +33,26 @@ describe('evaluate', () => {
     assert.equal(evaluate(freshLicense(T0), T0 + 15 * DAY), 'expired');
   });
 
-  test('an active token is active, even long after the trial', () => {
+  test('a recently verified active token is active, even long after the trial', () => {
+    const now = T0 + 100 * DAY;
+    assert.equal(evaluate(activeLicense(now - 60 * 60 * 1000), now), 'active');
+  });
+
+  test('active status needs a recent verification: grace window boundary', () => {
+    const now = T0 + 100 * DAY;
+    assert.equal(evaluate(activeLicense(now - ACTIVE_GRACE_MS), now), 'active');
+    assert.equal(evaluate(activeLicense(now - ACTIVE_GRACE_MS - 1), now), 'expired');
+  });
+
+  test('an active token never verified (lastCheckedAt null) falls back to the trial clock', () => {
     const license = { ...freshLicense(T0), token: 'tok_1', status: 'active' };
-    assert.equal(evaluate(license, T0 + 100 * DAY), 'active');
+    assert.equal(evaluate(license, T0 + 2 * DAY), 'trial');
+    assert.equal(evaluate(license, T0 + 100 * DAY), 'expired');
+  });
+
+  test('a stale verification inside the trial window degrades to trial, not expired', () => {
+    const now = T0 + 2 * DAY;
+    assert.equal(evaluate(activeLicense(now - ACTIVE_GRACE_MS - 1), now), 'trial');
   });
 
   test('a canceled token falls back to the trial clock (expired after it)', () => {
@@ -58,10 +83,14 @@ describe('daysLeft', () => {
     assert.equal(daysLeft(freshLicense(T0), T0 + 100 * DAY), 0);
   });
 
-  test('0 when active by token, even inside the trial window', () => {
+  test('0 when active by verified token, even inside the trial window', () => {
+    assert.equal(daysLeft(activeLicense(T0), T0), 0);
+    assert.equal(daysLeft(activeLicense(T0 + 100 * DAY), T0 + 100 * DAY), 0);
+  });
+
+  test('an unverified active token still shows trial days (evaluate treats it as trial)', () => {
     const license = { ...freshLicense(T0), token: 'tok_1', status: 'active' };
-    assert.equal(daysLeft(license, T0), 0);
-    assert.equal(daysLeft(license, T0 + 100 * DAY), 0);
+    assert.equal(daysLeft(license, T0), TRIAL_DAYS);
   });
 
   test('canceled token with an expired trial has 0 days left', () => {
