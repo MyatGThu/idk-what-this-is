@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Grocery Discount Hunter",
+  "version": "0.1.0",
+  "description": "Scans your local well-known grocery stores for items on your grocery list that are on discount, and fills your cart — you place the order.",
+  "permissions": ["storage", "tabs", "scripting", "alarms"],
+  "host_permissions": [
+    "https://www.woolworths.com.au/*",
+    "https://www.coles.com.au/*",
+    "https://www.igashop.com.au/*",
+    "https://www.walmart.com/*",
+    "https://www.kroger.com/*",
+    "https://www.target.com/*",
+    "https://www.tesco.com/*",
+    "https://www.sainsburys.co.uk/*"
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Grocery Discount Hunter",
+    "default_popup": "src/popup/popup.html"
+  },
+  "options_page": "src/options/options.html",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.woolworths.com.au/*",
+        "https://www.coles.com.au/*",
+        "https://www.igashop.com.au/*",
+        "https://www.walmart.com/*",
+        "https://www.kroger.com/*",
+        "https://www.target.com/*",
+        "https://www.tesco.com/*",
+        "https://www.sainsburys.co.uk/*"
+      ],
+      "js": ["src/content/scanner.js", "src/content/cart-injector.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
