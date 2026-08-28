@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Grocery Discount Hunter — Options</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --text: #1c2733;
+      --muted: #5c6b7a;
+      --border: #d9dfe6;
+      --accent: #1a7f37;
+      --accent-hover: #166b2f;
+      --accent-text: #ffffff;
+      --danger: #b42318;
+      --badge-trial-bg: #fff3d6;
+      --badge-trial-text: #7a5200;
+      --badge-active-bg: #d9f2e2;
+      --badge-active-text: #14532d;
+      --badge-expired-bg: #fde2e0;
+      --badge-expired-text: #8a1c12;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14181d;
+        --card: #1e242c;
+        --text: #e6ebf1;
+        --muted: #96a4b3;
+        --border: #333d49;
+        --accent: #2ea15a;
+        --accent-hover: #37b567;
+        --accent-text: #0c1710;
+        --danger: #f28b82;
+        --badge-trial-bg: #3d3117;
+        --badge-trial-text: #f4cd6a;
+        --badge-active-bg: #17372a;
+        --badge-active-text: #7ddba4;
+        --badge-expired-bg: #40201d;
+        --badge-expired-text: #f2a099;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main { max-width: 560px; margin: 0 auto; padding: 28px 16px 56px; }
+    h1 { font-size: 20px; margin: 0 0 2px; }
+    .tagline { margin: 0 0 20px; color: var(--muted); }
+    h2 { font-size: 15px; margin: 0 0 10px; }
+    section.card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    label { display: block; font-weight: 600; margin-bottom: 4px; }
+    .hint { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; }
+    select, input[type="url"], input[type="text"] {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--bg);
+      color: var(--text);
+      font: inherit;
+    }
+    select:focus, input:focus, button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+    .stores { display: flex; flex-direction: column; gap: 8px; }
+    .store {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-weight: 400;
+      margin: 0;
+      cursor: pointer;
+    }
+    .store input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+    button {
+      font: inherit;
+      padding: 7px 16px;
+      border-radius: 7px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text);
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-text);
+      font-weight: 600;
+    }
+    button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+    .actions { display: flex; align-items: center; gap: 12px; }
+    #save-status { color: var(--muted); transition: opacity 0.4s; }
+    #save-status.error { color: var(--danger); }
+    .license-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+    .badge.trial { background: var(--badge-trial-bg); color: var(--badge-trial-text); }
+    .badge.active { background: var(--badge-active-bg); color: var(--badge-active-text); }
+    .badge.expired { background: var(--badge-expired-bg); color: var(--badge-expired-text); }
+    .badge.unknown { background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
+    .muted { color: var(--muted); }
+    #license-email { margin-bottom: 10px; font-size: 12.5px; }
+    #license-email:empty { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Grocery Discount Hunter</h1>
+    <p class="tagline">Options</p>
+
+    <section class="card" aria-labelledby="license-heading">
+      <h2 id="license-heading">Subscription</h2>
+      <div class="license-row">
+        <span id="license-status" class="badge unknown">Checking…</span>
+        <span id="license-detail" class="muted"></span>
+      </div>
+      <div id="license-email" class="muted"></div>
+      <button id="manage-subscription" type="button">Manage subscription</button>
+    </section>
+
+    <section class="card" aria-labelledby="region-heading">
+      <h2 id="region-heading">Region</h2>
+      <label for="country">Country</label>
+      <select id="country"></select>
+      <p class="hint">Auto-detect uses your timezone and browser language.</p>
+    </section>
+
+    <section class="card" aria-labelledby="stores-heading">
+      <h2 id="stores-heading">Stores</h2>
+      <div id="stores" class="stores"></div>
+      <p class="hint">Unticked stores are left out of scans and cart fills.</p>
+    </section>
+
+    <section class="card" aria-labelledby="backend-heading">
+      <h2 id="backend-heading">Licensing backend</h2>
+      <label for="backend-url">Backend URL</label>
+      <input id="backend-url" type="url" spellcheck="false" placeholder="http://localhost:8787">
+      <p class="hint">Origin of the licensing server (see backend/README.md). No trailing slash.</p>
+    </section>
+
+    <div class="actions">
+      <button id="save" type="button" class="primary">Save</button>
+      <span id="save-status" role="status"></span>
+    </div>
+  </main>
+  <script type="module" src="options.js"></script>
+</body>
+</html>

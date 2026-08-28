@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Subscribe — Grocery Discount Hunter</title>
+    <link rel="stylesheet" href="paywall.css" />
+  </head>
+  <body>
+    <main class="page">
+      <p class="brand">Grocery Discount Hunter</p>
+
+      <div class="card">
+        <p id="license-status" class="status-banner" role="status" hidden></p>
+
+        <h1>Your 14-day free trial has ended</h1>
+        <p class="lede">
+          Keep scanning your local grocery stores for discounts on your list, and keep
+          filling your cart in one click — checkout always stays in your hands.
+        </p>
+
+        <p class="price"><span class="price-amount">$6.99</span><span class="price-period">/month</span></p>
+
+        <ul class="benefits">
+          <li>All supported stores in your region unlocked</li>
+          <li>Unlimited discount scans and cart fills</li>
+          <li>All future updates and newly added stores included</li>
+          <li>Never places an order — checkout is always yours</li>
+        </ul>
+
+        <form id="subscribe-form" class="field-row">
+          <input id="email-input" type="email" autocomplete="email"
+                 placeholder="you@example.com" aria-label="Email for your subscription" />
+          <button id="subscribe-button" type="submit" class="button primary">Subscribe with Stripe</button>
+        </form>
+        <p id="subscribe-feedback" class="feedback" role="status"></p>
+
+        <div class="divider" role="separator"><span>Already subscribed?</span></div>
+
+        <form id="activate-form" class="field-row">
+          <input id="token-input" type="text" autocomplete="off" spellcheck="false"
+                 placeholder="Paste your license token" aria-label="License token" />
+          <button id="activate-button" type="submit" class="button">Activate</button>
+        </form>
+        <p id="activate-feedback" class="feedback" role="status"></p>
+      </div>
+
+      <p class="page-footer">
+        Payments are handled by Stripe; this extension never sees your card details.
+        <button id="options-link" type="button" class="link-button">Open extension settings</button>
+      </p>
+    </main>
+
+    <script type="module" src="paywall.js"></script>
+  </body>
+</html>

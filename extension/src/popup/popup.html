@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Grocery Discount Hunter</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="app-header-text">
+        <h1 class="app-title">Grocery Discount Hunter</h1>
+        <p id="region-line" class="region-line">Detecting your region…</p>
+      </div>
+      <button id="options-button" class="icon-button" type="button" title="Settings" aria-label="Open settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </header>
+
+    <div id="license-banner" hidden></div>
+
+    <section class="section" id="list-section">
+      <h2 class="section-title">Your grocery list</h2>
+      <ul id="grocery-list" class="grocery-list"></ul>
+      <p id="list-empty" class="empty-note" hidden>
+        No items yet — add what you need below, then scan for discounts.
+      </p>
+      <form id="quick-add-form" class="quick-add">
+        <input id="quick-add-input" type="text" autocomplete="off"
+               placeholder="Add an item, e.g. full cream milk 2L" aria-label="Add a grocery item" />
+        <button type="submit" class="button">Add</button>
+      </form>
+      <button id="paste-toggle" type="button" class="link-button" aria-expanded="false">Paste list</button>
+      <div id="paste-panel" class="paste-panel" hidden>
+        <textarea id="paste-textarea" rows="5" aria-label="Paste your grocery list"
+                  placeholder="One item per line, e.g.&#10;2x milk&#10;bread&#10;eggs (free range)"></textarea>
+        <div class="paste-actions">
+          <button id="paste-import" type="button" class="button">Import</button>
+          <span id="paste-feedback" class="feedback" role="status"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="scan-section">
+      <button id="scan-button" class="button primary wide" type="button">Find discounts</button>
+      <div id="store-chips" class="chips" hidden></div>
+      <p id="scan-note" class="feedback" role="status" hidden></p>
+    </section>
+
+    <section class="section" id="results-section" hidden>
+      <h2 class="section-title">Discounts found</h2>
+      <div id="results"></div>
+    </section>
+
+    <footer class="app-footer">
+      <p>Adds only items from your list. Never places the order — checkout is always yours.</p>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "grocery-discount-hunter",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node build/build.js all",
+    "build:chrome": "node build/build.js chrome",
+    "build:firefox": "node build/build.js firefox",
+    "test": "node --test",
+    "backend": "node backend/server.js"
+  }
+}
