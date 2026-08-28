@@ -44,7 +44,10 @@
     if (!byIndex) return null;
     const actual = normalize(textOfTitle(byIndex, titleSelector));
     if (!actual) return null;
-    if (actual === wanted || actual.includes(wanted) || wanted.includes(actual)) return byIndex;
+    // The tile's title must contain the approved title, never the reverse: a
+    // short generic tile ("Milk") inside a longer approved title ("Almond
+    // Milk 1L") would otherwise pass for a different product.
+    if (actual === wanted || actual.includes(wanted)) return byIndex;
     return null;
   }
 

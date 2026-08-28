@@ -156,8 +156,11 @@ parallel, queries within a store run sequentially with a polite delay (>=800ms).
 Cart flow per store: background groups the approved items by `product.query`,
 opens/reuses a tab, navigates to `searchUrl(adapter, query)` per group, sends
 `ADD_PRODUCTS` for that group. `cart-injector` locates each tile by exact title
-match first, `tileIndex` as fallback, clicks the adapter's `addToCartButton`
-`quantity` times (capped at 10, ~400ms apart), and NEVER navigates to checkout.
+match first, `tileIndex` as fallback — accepted only when that tile's title
+still equals or contains the approved product's title (a reordered page must
+fail the item, never click a different product) — then re-locates and re-vets
+the adapter's `addToCartButton` before every click (`quantity` clicks, capped
+at 10, ~400ms apart), and NEVER navigates to checkout.
 When all groups are done, background opens the store's cart page in a normal
 (active) tab so the user can review and place the order themselves.
 
